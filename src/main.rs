@@ -164,7 +164,6 @@ fn random_in_unit_sphere() -> glm::Vec3 {
 fn main() {
   let dim = glm::vec2(200f32, 100f32);
   let ns = 100;
-  let mut imgbuf = image::ImageBuffer::new(dim.x as u32, dim.y as u32);
 
   let mut scene: Scene = Scene {
     spheres: Vec::new(),
@@ -187,6 +186,7 @@ fn main() {
 
   let mut rng = SmallRng::from_entropy();
 
+  let mut imgbuf = image::ImageBuffer::new(dim.x as u32, dim.y as u32);
   for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
     let mut c = glm::Vec3::zeros();
     for _ in 0..ns {
@@ -208,6 +208,5 @@ fn main() {
     // let srgbc: [u8; 3] = Srgb::from_linear(linc).into_format().into_raw();
     // *pixel = image::Rgb(srgbc);
   }
-
   imgbuf.save("o.ppm").unwrap();
 }
