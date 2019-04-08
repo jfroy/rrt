@@ -1,9 +1,13 @@
 extern crate image;
 extern crate nalgebra as na;
 extern crate nalgebra_glm as glm;
+extern crate palette;
 extern crate rand;
 
+use palette::{LinSrgb, Pixel, Srgb};
+use rand::distributions::Uniform;
 use rand::prelude::*;
+use std::cell::RefCell;
 use std::option::Option;
 
 struct Hit {
@@ -65,11 +69,11 @@ impl Hittable for Sphere {
   }
 }
 
-struct World {
+struct Scene {
   spheres: Vec<Sphere>,
 }
 
-impl Hittable for World {
+impl Hittable for Scene {
   fn hit(&self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit> {
     let mut closest_t = t_max;
     let mut closest_hit: Option<Hit> = None;
@@ -105,20 +109,56 @@ impl Camera {
   fn gen_ray(&self, uv: glm::Vec2) -> Ray {
     Ray {
       origin: self.origin,
-      direction: self.lower_left_corner + uv.x * self.horizontal + uv.y * self.vertical
+      direction: self.lower_left_corner + (uv.x * self.horizontal) + (uv.y * self.vertical)
         - self.origin,
     }
   }
 }
 
-fn color(r: &Ray, world: &World) -> glm::Vec3 {
-  if let Some(hit) = world.hit(r, 0f32, std::f32::MAX) {
+fn color(r: &Ray, scene: &Scene) -> glm::Vec3 {
+  if let Some(hit) = scene.hit(r, 0.001f32, std::f32::MAX) {
+
     // Scale and bias the normal from [-1, 1] to [0, 1] and interpret as sRGB.
-    return (hit.normal + glm::Vec3::repeat(1f32)) * 0.5f32;
+    // return (hit.normal + glm::Vec3::repeat(1f32)) * 0.5f32;
+
+    // Diffuse material.
+    let target = hit.p + hit.normal + random_in_unit_sphere();
+    return 0.5f32
+      * color(
+        &Ray {
+          origin: hit.p,
+          direction: target - hit.p,
+        },
+        scene,
+      );
   }
+
+  let white: glm::Vec3 = glm::Vec3::repeat(1f32);
+  let sky_blue: glm::Vec3 = glm::vec3(0.5f32, 0.7f32, 1.0f32);
   let unit_direction = r.direction.normalize();
-  let t: f32 = 0.5f32 * unit_direction.y + 1.0f32;
-  return (1.0f32 - t) * glm::vec3(1f32, 1f32, 1f32) + t * glm::vec3(0.5f32, 0.7f32, 1.0f32);
+  let t = 0.5f32 * (unit_direction.y + 1.0f32);
+  return ((1.0f32 - t) * white) + (t * sky_blue);
+}
+
+thread_local!(static RNG: RefCell<SmallRng> = RefCell::new(SmallRng::from_entropy()));
+
+#[inline(always)]
+fn random_in_unit_sphere() -> glm::Vec3 {
+  let d = Uniform::from(0f32..1f32);
+  loop {
+    let v = RNG.with(|rng_rc| glm::Vec3::from_distribution(&d, &mut *rng_rc.borrow_mut()));
+    let p = 2.0f32 * v - glm::Vec3::repeat(1f32);
+    if glm::dot(&p, &p) < 1.0 {
+      return p;
+    }
+  }
+  
+  // NOTE: This produces a much smaller shadow for the small sphere and other
+  // differences from the reference implementation that generates vectors inside
+  // the unit sphere (as opposed to on the surface).
+  // let sphere = rand::distributions::UnitSphereSurface::new();
+  // let s = RNG.with(|rng_rc| sphere.sample(&mut *rng_rc.borrow_mut()));
+  // glm::vec3(s[0] as f32, s[1] as f32, s[2] as f32)
 }
 
 fn main() {
@@ -126,14 +166,14 @@ fn main() {
   let ns = 100;
   let mut imgbuf = image::ImageBuffer::new(dim.x as u32, dim.y as u32);
 
-  let mut world: World = World {
+  let mut scene: Scene = Scene {
     spheres: Vec::new(),
   };
-  world.spheres.push(Sphere {
+  scene.spheres.push(Sphere {
     center: glm::vec3(0f32, 0f32, -1f32),
     radius: 0.5f32,
   });
-  world.spheres.push(Sphere {
+  scene.spheres.push(Sphere {
     center: glm::vec3(0f32, -100.5f32, -1f32),
     radius: 100f32,
   });
@@ -152,17 +192,22 @@ fn main() {
     for _ in 0..ns {
       let uv = glm::vec2(
         x as f32 + rng.gen::<f32>(),
-        (dim.y - y as f32) + rng.gen::<f32>(),
+        dim.y - (y + 1) as f32 + rng.gen::<f32>(),
       )
       .component_div(&dim);
       let r = cam.gen_ray(uv);
-      //let p = r.point_at_parameter(2f32);
-      c += color(&r, &world);
+      c += color(&r, &scene);
     }
-    c = c.component_div(&glm::Vec3::repeat(ns as f32)) * 255.99f32;
-    let ci = glm::IVec3::new(c.x as i32, c.y as i32, c.z as i32);
-    *pixel = image::Rgb([ci.x as u8, ci.y as u8, ci.z as u8]);
+    // The book uses a simple gamma 2.0 function, not the sRGB OETF.
+    c.apply(|e| (e / (ns as f32)).sqrt() * 255.99f32);
+    *pixel = image::Rgb([c.x as i32 as u8, c.y as i32 as u8, c.z as i32 as u8]);
+
+    // NOTE: This code outputs proper sRGB.
+    // c = c.component_div(&glm::Vec3::repeat(ns as f32));
+    // let linc = LinSrgb::new(c.x, c.y, c.z);
+    // let srgbc: [u8; 3] = Srgb::from_linear(linc).into_format().into_raw();
+    // *pixel = image::Rgb(srgbc);
   }
 
-  imgbuf.save("o.png").unwrap();
+  imgbuf.save("o.ppm").unwrap();
 }
