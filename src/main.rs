@@ -10,32 +10,52 @@ use rand::prelude::*;
 use std::cell::RefCell;
 use std::option::Option;
 
-struct Hit {
-  t: f32,
-  p: glm::Vec3,
-  normal: glm::Vec3,
+// Ray
+
+struct Ray {
+  origin: glm::Vec3,
+  direction: glm::Vec3,
 }
 
-impl Default for Hit {
-  fn default() -> Self {
-    Hit {
-      t: 0f32,
-      p: glm::Vec3::zeros(),
-      normal: glm::Vec3::zeros(),
-    }
+impl Ray {
+  fn point_at_parameter(&self, t: f32) -> glm::Vec3 {
+    self.origin + (t * self.direction)
   }
 }
 
-trait Hittable {
+// Material
+
+struct Scattered {
+  r: Ray,
+  attenuation: glm::Vec3,
+}
+
+trait Material {
+  fn scatter(&self, r: &Ray, hit: &Hit) -> Option<Scattered>;
+}
+
+// Hittable
+
+struct Hit<'obj> {
+  t: f32,
+  p: glm::Vec3,
+  normal: glm::Vec3,
+  material: &'obj Material,
+}
+
+trait Hittable<'obj> {
   fn hit(&self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit>;
 }
 
-struct Sphere {
+// Sphere
+
+struct Sphere<'obj> {
   center: glm::Vec3,
   radius: f32,
+  material: &'obj Material,
 }
 
-impl Hittable for Sphere {
+impl<'obj> Hittable<'obj> for Sphere<'obj> {
   fn hit(&self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit> {
     let oc = r.origin - self.center;
     let a = glm::dot(&r.direction, &r.direction);
@@ -54,6 +74,7 @@ impl Hittable for Sphere {
         t: root,
         p: hit_p,
         normal: (hit_p - self.center) / self.radius,
+        material: self.material,
       });
     }
     let root = root_term_1 + root_term_2;
@@ -63,17 +84,20 @@ impl Hittable for Sphere {
         t: root,
         p: hit_p,
         normal: (hit_p - self.center) / self.radius,
+        material: self.material,
       });
     }
     None
   }
 }
 
-struct Scene {
-  spheres: Vec<Sphere>,
+// Scene
+
+struct Scene<'obj> {
+  spheres: Vec<Sphere<'obj>>,
 }
 
-impl Hittable for Scene {
+impl<'obj> Hittable<'obj> for Scene<'obj> {
   fn hit(&self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit> {
     let mut closest_t = t_max;
     let mut closest_hit: Option<Hit> = None;
@@ -87,16 +111,24 @@ impl Hittable for Scene {
   }
 }
 
-struct Ray {
-  origin: glm::Vec3,
-  direction: glm::Vec3,
+// Lambertian
+
+struct Lambertian {
+  albedo: glm::Vec3,
 }
 
-impl Ray {
-  fn point_at_parameter(&self, t: f32) -> glm::Vec3 {
-    self.origin + (t * self.direction)
+impl Material for Lambertian {
+  fn scatter(&self, _: &Ray, hit: &Hit) -> Option<Scattered> {
+    let target = hit.p + hit.normal + random_in_unit_sphere();
+    let origin = hit.p;
+    let direction = target - hit.p;
+    let r = Ray { origin, direction };
+    let attenuation = self.albedo;
+    Some(Scattered { r, attenuation })
   }
 }
+
+// Camera
 
 struct Camera {
   lower_left_corner: glm::Vec3,
@@ -115,29 +147,24 @@ impl Camera {
   }
 }
 
-fn color(r: &Ray, scene: &Scene) -> glm::Vec3 {
+// main
+
+fn color(r: &Ray, scene: &Scene, depth: i32) -> glm::Vec3 {
   if let Some(hit) = scene.hit(r, 0.001f32, std::f32::MAX) {
-
-    // Scale and bias the normal from [-1, 1] to [0, 1] and interpret as sRGB.
-    // return (hit.normal + glm::Vec3::repeat(1f32)) * 0.5f32;
-
-    // Diffuse material.
-    let target = hit.p + hit.normal + random_in_unit_sphere();
-    return 0.5f32
-      * color(
-        &Ray {
-          origin: hit.p,
-          direction: target - hit.p,
-        },
-        scene,
-      );
+    if depth >= 50 {
+      return glm::Vec3::zeros();
+    }
+    if let Some(sc) = hit.material.scatter(r, &hit) {
+      return glm::matrix_comp_mult(&sc.attenuation, &color(&sc.r, scene, depth + 1));
+    }
+    return glm::Vec3::zeros();
   }
 
   let white: glm::Vec3 = glm::Vec3::repeat(1f32);
   let sky_blue: glm::Vec3 = glm::vec3(0.5f32, 0.7f32, 1.0f32);
   let unit_direction = r.direction.normalize();
   let t = 0.5f32 * (unit_direction.y + 1.0f32);
-  return ((1.0f32 - t) * white) + (t * sky_blue);
+  return glm::lerp(&white, &sky_blue, t);
 }
 
 thread_local!(static RNG: RefCell<SmallRng> = RefCell::new(SmallRng::from_entropy()));
@@ -152,7 +179,7 @@ fn random_in_unit_sphere() -> glm::Vec3 {
       return p;
     }
   }
-  
+
   // NOTE: This produces a much smaller shadow for the small sphere and other
   // differences from the reference implementation that generates vectors inside
   // the unit sphere (as opposed to on the surface).
@@ -168,13 +195,23 @@ fn main() {
   let mut scene: Scene = Scene {
     spheres: Vec::new(),
   };
+
+  let lamb1 = Lambertian {
+    albedo: glm::vec3(0.8f32, 0.3f32, 0.3f32),
+  };
+  let lamb2 = Lambertian {
+    albedo: glm::vec3(0.8f32, 0.8f32, 0f32),
+  };
+
   scene.spheres.push(Sphere {
     center: glm::vec3(0f32, 0f32, -1f32),
     radius: 0.5f32,
+    material: &lamb1,
   });
   scene.spheres.push(Sphere {
     center: glm::vec3(0f32, -100.5f32, -1f32),
     radius: 100f32,
+    material: &lamb2,
   });
 
   let cam = Camera {
@@ -196,7 +233,7 @@ fn main() {
       )
       .component_div(&dim);
       let r = cam.gen_ray(uv);
-      c += color(&r, &scene);
+      c += color(&r, &scene, 0);
     }
     // The book uses a simple gamma 2.0 function, not the sRGB OETF.
     c.apply(|e| (e / (ns as f32)).sqrt() * 255.99f32);
