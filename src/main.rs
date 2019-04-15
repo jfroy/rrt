@@ -3,10 +3,12 @@ extern crate nalgebra as na;
 extern crate nalgebra_glm as glm;
 extern crate palette;
 extern crate rand;
+extern crate rayon;
 
 use palette::{LinSrgb, Pixel, Srgb};
 use rand::distributions::Uniform;
 use rand::prelude::*;
+use rayon::prelude::*;
 use std::cell::RefCell;
 use std::option::Option;
 
@@ -40,7 +42,7 @@ struct Hit<'obj> {
   t: f32,
   p: glm::Vec3,
   normal: glm::Vec3,
-  material: &'obj Material,
+  material: &'obj (Material + Sync),
 }
 
 trait Hittable<'obj> {
@@ -52,7 +54,7 @@ trait Hittable<'obj> {
 struct Sphere<'obj> {
   center: glm::Vec3,
   radius: f32,
-  material: &'obj Material,
+  material: &'obj (Material + Sync),
 }
 
 impl<'obj> Hittable<'obj> for Sphere<'obj> {
@@ -101,7 +103,7 @@ impl<'obj> Hittable<'obj> for Scene<'obj> {
   fn hit(&self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit> {
     let mut closest_t = t_max;
     let mut closest_hit: Option<Hit> = None;
-    for sphere in self.spheres.iter() {
+    for sphere in &self.spheres {
       if let Some(hit) = sphere.hit(r, t_min, closest_t) {
         closest_t = hit.t;
         closest_hit = Some(hit);
@@ -149,13 +151,13 @@ impl Camera {
 
 // main
 
-fn color(r: &Ray, scene: &Scene, depth: i32) -> glm::Vec3 {
+fn trace(r: &Ray, scene: &Scene, depth: i32) -> glm::Vec3 {
   if let Some(hit) = scene.hit(r, 0.001f32, std::f32::MAX) {
     if depth >= 50 {
       return glm::Vec3::zeros();
     }
     if let Some(sc) = hit.material.scatter(r, &hit) {
-      return glm::matrix_comp_mult(&sc.attenuation, &color(&sc.r, scene, depth + 1));
+      return glm::matrix_comp_mult(&sc.attenuation, &trace(&sc.r, scene, depth + 1));
     }
     return glm::Vec3::zeros();
   }
@@ -189,7 +191,7 @@ fn random_in_unit_sphere() -> glm::Vec3 {
 }
 
 fn main() {
-  let dim = glm::vec2(200f32, 100f32);
+  let dim = glm::vec2(1000, 500);
   let ns = 100;
 
   let mut scene: Scene = Scene {
@@ -221,29 +223,37 @@ fn main() {
     origin: glm::vec3(0f32, 0f32, 0f32),
   };
 
-  let mut rng = SmallRng::from_entropy();
+  let rd = Uniform::from(0f32..1f32);
 
-  let mut imgbuf = image::ImageBuffer::new(dim.x as u32, dim.y as u32);
-  for (x, y, pixel) in imgbuf.enumerate_pixels_mut() {
-    let mut c = glm::Vec3::zeros();
-    for _ in 0..ns {
-      let uv = glm::vec2(
-        x as f32 + rng.gen::<f32>(),
-        dim.y - (y + 1) as f32 + rng.gen::<f32>(),
-      )
-      .component_div(&dim);
-      let r = cam.gen_ray(uv);
-      c += color(&r, &scene, 0);
+  let mut pixcoords: Vec<(f32, f32)> = vec![];
+  for y in 0..dim.y {
+    for x in 0..dim.x {
+      pixcoords.push((y as f32, x as f32));
     }
-    // The book uses a simple gamma 2.0 function, not the sRGB OETF.
-    c.apply(|e| (e / (ns as f32)).sqrt() * 255.99f32);
-    *pixel = image::Rgb([c.x as i32 as u8, c.y as i32 as u8, c.z as i32 as u8]);
-
-    // NOTE: This code outputs proper sRGB.
-    // c = c.component_div(&glm::Vec3::repeat(ns as f32));
-    // let linc = LinSrgb::new(c.x, c.y, c.z);
-    // let srgbc: [u8; 3] = Srgb::from_linear(linc).into_format().into_raw();
-    // *pixel = image::Rgb(srgbc);
   }
-  imgbuf.save("o.ppm").unwrap();
+  let pixels: Vec<u8> = pixcoords
+    .par_iter()
+    .flat_map(|(y, x)| {
+      let mut c = glm::Vec3::zeros();
+      for _ in 0..ns {
+        let rv = RNG.with(|rng_rc| glm::Vec2::from_distribution(&rd, &mut *rng_rc.borrow_mut()));
+        let uv = (glm::vec2(*x, dim.y as f32 - *y + 1f32) + rv)
+          .component_div(&glm::vec2(dim.x as f32, dim.y as f32));
+        let r = cam.gen_ray(uv);
+        c += trace(&r, &scene, 0);
+      }
+      // The book uses a simple gamma 2.0 function, not the sRGB OETF.
+      c.apply(|e| (e / (ns as f32)).sqrt() * 255.99f32);
+      vec![c.x as i32 as u8, c.y as i32 as u8, c.z as i32 as u8]
+    })
+    .collect();
+
+  image::save_buffer(
+    "o.ppm",
+    &pixels[..],
+    dim.x as u32,
+    dim.y as u32,
+    image::RGB(8),
+  )
+  .unwrap()
 }
