@@ -136,18 +136,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hello"
-version = "0.1.0"
-dependencies = [
- "image 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "nalgebra 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "nalgebra-glm 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "palette 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "rayon 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "image"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -514,6 +502,18 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "rand_core 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "rrt"
+version = "0.1.0"
+dependencies = [
+ "image 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nalgebra 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nalgebra-glm 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "palette 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rayon 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
