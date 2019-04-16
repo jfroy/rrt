@@ -327,7 +327,6 @@ fn main() {
   let mut pixels = vec![0u8; dim.y as usize * dim.x as usize * BYTES_PER_PIXEL];
   pixels
     .par_chunks_mut(BYTES_PER_PIXEL)
-    .into_par_iter()
     .enumerate()
     .for_each(|(idx, chunk)| {
       let puv = glm::vec2((idx % dim.x) as f32, (dim.y - 1 - idx / dim.x) as f32);
