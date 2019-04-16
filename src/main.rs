@@ -284,7 +284,7 @@ fn main() {
   };
   let mat_metal1 = Metal {
     albedo: glm::vec3(0.8, 0.6, 0.2),
-    fuzz: 0.,
+    fuzz: 0.3,
   };
   let mat_dia1 = Dielectric { ref_idx: 1.5 };
 
