@@ -132,6 +132,27 @@ impl Material for Lambertian {
   }
 }
 
+// Metal
+
+struct Metal {
+  albedo: glm::Vec3,
+  fuzz: f32,
+}
+
+impl Material for Metal {
+  fn scatter(&self, r: &Ray, hit: &Hit) -> Option<Scattered> {
+    let origin = hit.p;
+    let direction =
+      glm::reflect_vec(&r.direction.normalize(), &hit.normal) + self.fuzz * random_in_unit_sphere();
+    let r = Ray { origin, direction };
+    let attenuation = self.albedo;
+    if glm::dot(&direction, &hit.normal) > 0f32 {
+      return Some(Scattered { r, attenuation });
+    }
+    None
+  }
+}
+
 // Camera
 
 struct Camera {
@@ -153,6 +174,7 @@ impl Camera {
 
 // main
 
+// Traces a ray. This is `color` in the book.
 fn trace(r: &Ray, scene: &Scene, depth: i32) -> glm::Vec3 {
   if let Some(hit) = scene.hit(r, 0.001f32, std::f32::MAX) {
     if depth >= 50 {
@@ -163,12 +185,11 @@ fn trace(r: &Ray, scene: &Scene, depth: i32) -> glm::Vec3 {
     }
     return glm::Vec3::zeros();
   }
-
   let white: glm::Vec3 = glm::Vec3::repeat(1f32);
   let sky_blue: glm::Vec3 = glm::vec3(0.5f32, 0.7f32, 1.0f32);
   let unit_direction = r.direction.normalize();
   let t = 0.5f32 * (unit_direction.y + 1.0f32);
-  return glm::lerp(&white, &sky_blue, t);
+  glm::lerp(&white, &sky_blue, t)
 }
 
 thread_local!(static RNG: RefCell<SmallRng> = RefCell::new(SmallRng::from_entropy()));
@@ -200,22 +221,40 @@ fn main() {
     spheres: Vec::new(),
   };
 
-  let lamb1 = Lambertian {
+  let mat_lamb1 = Lambertian {
     albedo: glm::vec3(0.8f32, 0.3f32, 0.3f32),
   };
-  let lamb2 = Lambertian {
+  let mat_lamb2 = Lambertian {
     albedo: glm::vec3(0.8f32, 0.8f32, 0f32),
+  };
+  let mat_metal1 = Metal {
+    albedo: glm::vec3(0.8f32, 0.6f32, 0.2f32),
+    fuzz: 1f32
+  };
+  let mat_metal2 = Metal {
+    albedo: glm::vec3(0.8f32, 0.8f32, 0.8f32),
+    fuzz: 0.3f32,
   };
 
   scene.spheres.push(Sphere {
     center: glm::vec3(0f32, 0f32, -1f32),
     radius: 0.5f32,
-    material: &lamb1,
+    material: &mat_lamb1,
   });
   scene.spheres.push(Sphere {
     center: glm::vec3(0f32, -100.5f32, -1f32),
     radius: 100f32,
-    material: &lamb2,
+    material: &mat_lamb2,
+  });
+  scene.spheres.push(Sphere {
+    center: glm::vec3(1f32, 0f32, -1f32),
+    radius: 0.5f32,
+    material: &mat_metal1,
+  });
+  scene.spheres.push(Sphere {
+    center: glm::vec3(-1f32, 0f32, -1f32),
+    radius: 0.5f32,
+    material: &mat_metal2,
   });
 
   let cam = Camera {
