@@ -164,16 +164,10 @@ impl Material for Dielectric {
     let unit_direction = r.direction.normalize();
     let reflected = glm::reflect_vec(&unit_direction, &hit.normal);
     let attenuation = glm::vec3(1., 1., 1.);
-    let direction_dot_n_positive = glm::dot(&r.direction, &hit.normal) > 0.;
-    let outward_normal = if direction_dot_n_positive {
-      -hit.normal
+    let (outward_normal, ni_over_nt) = if glm::dot(&r.direction, &hit.normal) > 0. {
+      (-hit.normal, self.ref_idx)
     } else {
-      hit.normal
-    };
-    let ni_over_nt = if direction_dot_n_positive {
-      self.ref_idx
-    } else {
-      1. / self.ref_idx
+      (hit.normal, 1. / self.ref_idx)
     };
     let refracted = glm::refract_vec(&unit_direction, &outward_normal, ni_over_nt);
     if refracted != glm::Vec3::zeros() {
