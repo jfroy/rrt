@@ -323,28 +323,27 @@ fn main() {
 
   let rd = Uniform::from(0f32..1f32);
 
-  let mut pixcoords: Vec<(f32, f32)> = vec![];
-  for y in 0..dim.y {
-    for x in 0..dim.x {
-      pixcoords.push((y as f32, x as f32));
-    }
-  }
-  let pixels: Vec<u8> = pixcoords
-    .par_iter()
-    .flat_map(|(y, x)| {
+  const BYTES_PER_PIXEL: usize = 3;
+  let mut pixels = vec![0u8; dim.y as usize * dim.x as usize * BYTES_PER_PIXEL];
+  pixels
+    .par_chunks_mut(BYTES_PER_PIXEL)
+    .into_par_iter()
+    .enumerate()
+    .for_each(|(idx, chunk)| {
+      let puv = glm::vec2((idx % dim.x) as f32, (dim.y - 1 - idx / dim.x) as f32);
       let mut c = glm::Vec3::zeros();
       for _ in 0..ns {
-        let rv = RNG.with(|rng_rc| glm::Vec2::from_distribution(&rd, &mut *rng_rc.borrow_mut()));
-        let uv = (glm::vec2(*x, dim.y as f32 - *y + 1.) + rv)
-          .component_div(&glm::vec2(dim.x as f32, dim.y as f32));
-        let r = cam.gen_ray(uv);
+        let noise = RNG.with(|rng_rc| glm::Vec2::from_distribution(&rd, &mut *rng_rc.borrow_mut()));
+        let suv = (puv + noise).component_div(&glm::vec2(dim.x as f32, dim.y as f32));
+        let r = cam.gen_ray(suv);
         c += trace(&r, &scene, 0);
       }
       // The book uses a simple gamma 2.0 function, not the sRGB OETF.
       c.apply(|e| (e / (ns as f32)).sqrt() * 255.99);
-      vec![c.x as i32 as u8, c.y as i32 as u8, c.z as i32 as u8]
-    })
-    .collect();
+      chunk[0] = c.x as u8;
+      chunk[1] = c.y as u8;
+      chunk[2] = c.z as u8;
+    });
 
   image::save_buffer(
     "o.ppm",
