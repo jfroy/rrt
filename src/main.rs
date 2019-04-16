@@ -329,12 +329,12 @@ fn main() {
     .par_chunks_mut(BYTES_PER_PIXEL)
     .enumerate()
     .for_each(|(idx, chunk)| {
-      let puv = glm::vec2((idx % dim.x) as f32, (dim.y - 1 - idx / dim.x) as f32);
+      let xy = glm::vec2((idx % dim.x) as f32, (dim.y - 1 - idx / dim.x) as f32);
       let mut c = glm::Vec3::zeros();
       for _ in 0..ns {
         let noise = RNG.with(|rng_rc| glm::Vec2::from_distribution(&rd, &mut *rng_rc.borrow_mut()));
-        let suv = (puv + noise).component_div(&glm::vec2(dim.x as f32, dim.y as f32));
-        let r = cam.gen_ray(suv);
+        let uv = (xy + noise).component_div(&glm::vec2(dim.x as f32, dim.y as f32));
+        let r = cam.gen_ray(uv);
         c += trace(&r, &scene, 0);
       }
       // The book uses a simple gamma 2.0 function, not the sRGB OETF.
