@@ -153,6 +153,37 @@ impl Material for Metal {
   }
 }
 
+// Dielectric
+
+struct Dielectric {
+  eta: f32,
+}
+
+impl Material for Dielectric {
+  fn scatter(&self, r: &Ray, hit: &Hit) -> Option<Scattered> {
+    let unit_direction = r.direction.normalize();
+    let reflected = glm::reflect_vec(&unit_direction, &hit.normal);
+    let attenuation = glm::vec3(1f32, 1f32, 1f32);
+    let direction_dot_n_positive = glm::dot(&r.direction, &hit.normal) > 0f32;
+    let outward_normal = if direction_dot_n_positive {
+      -hit.normal
+    } else {
+      hit.normal
+    };
+    let ni_over_nt = if direction_dot_n_positive {
+      self.eta
+    } else {
+      1f32 / self.eta
+    };
+    let refracted = glm::refract_vec(&unit_direction, &outward_normal, ni_over_nt);
+    if refracted != glm::Vec3::zeros() {
+      let r = Ray { origin: hit.p, direction: refracted };
+      return Some(Scattered { r, attenuation });
+    }
+    None
+  }
+}
+
 // Camera
 
 struct Camera {
@@ -222,18 +253,17 @@ fn main() {
   };
 
   let mat_lamb1 = Lambertian {
-    albedo: glm::vec3(0.8f32, 0.3f32, 0.3f32),
+    albedo: glm::vec3(0.1f32, 0.2f32, 0.5f32),
   };
   let mat_lamb2 = Lambertian {
     albedo: glm::vec3(0.8f32, 0.8f32, 0f32),
   };
   let mat_metal1 = Metal {
     albedo: glm::vec3(0.8f32, 0.6f32, 0.2f32),
-    fuzz: 1f32
+    fuzz: 0.0f32
   };
-  let mat_metal2 = Metal {
-    albedo: glm::vec3(0.8f32, 0.8f32, 0.8f32),
-    fuzz: 0.3f32,
+  let mat_dia1 = Dielectric {
+    eta: 1.5f32,
   };
 
   scene.spheres.push(Sphere {
@@ -254,7 +284,7 @@ fn main() {
   scene.spheres.push(Sphere {
     center: glm::vec3(-1f32, 0f32, -1f32),
     radius: 0.5f32,
-    material: &mat_metal2,
+    material: &mat_dia1,
   });
 
   let cam = Camera {
