@@ -14,6 +14,10 @@ use rayon::prelude::*;
 use std::cell::RefCell;
 use std::option::Option;
 
+// RNG
+
+thread_local!(static RNG: RefCell<SmallRng> = RefCell::new(SmallRng::from_entropy()));
+
 // Ray
 
 struct Ray {
@@ -155,6 +159,11 @@ impl Material for Metal {
 
 // Dielectric
 
+fn schlick(cosine: f32, ref_idx: f32) -> f32 {
+  let r0 = ((1. - ref_idx) / (1. + ref_idx)).powf(2.);
+  r0 + (1. - r0) * (1. - cosine).powf(5.)
+}
+
 struct Dielectric {
   ref_idx: f32,
 }
@@ -163,18 +172,41 @@ impl Material for Dielectric {
   fn scatter(&self, r: &Ray, hit: &Hit) -> Option<Scattered> {
     let unit_direction = r.direction.normalize();
     let reflected = glm::reflect_vec(&unit_direction, &hit.normal);
-    let attenuation = glm::vec3(1., 1., 1.);
-    let (outward_normal, ni_over_nt) = if glm::dot(&r.direction, &hit.normal) > 0. {
-      (-hit.normal, self.ref_idx)
+    let dir_dot_normal = glm::dot(&r.direction, &hit.normal);
+    let (outward_normal, ni_over_nt, cosine) = if dir_dot_normal > 0. {
+      (
+        -hit.normal,
+        self.ref_idx,
+        self.ref_idx * dir_dot_normal / glm::length(&r.direction),
+      )
     } else {
-      (hit.normal, 1. / self.ref_idx)
+      (
+        hit.normal,
+        1. / self.ref_idx,
+        -dir_dot_normal / glm::length(&r.direction),
+      )
     };
     let refracted = glm::refract_vec(&unit_direction, &outward_normal, ni_over_nt);
-    if refracted != glm::Vec3::zeros() {
-      let r = Ray { origin: hit.p, direction: refracted };
-      return Some(Scattered { r, attenuation });
-    }
-    None
+    let reflect_prob = if refracted != glm::Vec3::zeros() {
+      schlick(cosine, self.ref_idx)
+    } else {
+      1.
+    };
+    let r = if RNG.with(|rng_rc| Uniform::from(0f32..1f32).sample(&mut *rng_rc.borrow_mut()))
+      < reflect_prob
+    {
+      Ray {
+        origin: hit.p,
+        direction: reflected,
+      }
+    } else {
+      Ray {
+        origin: hit.p,
+        direction: refracted,
+      }
+    };
+    let attenuation = glm::vec3(1., 1., 1.);
+    Some(Scattered { r, attenuation })
   }
 }
 
@@ -217,8 +249,6 @@ fn trace(r: &Ray, scene: &Scene, depth: i32) -> glm::Vec3 {
   glm::lerp(&white, &sky_blue, t)
 }
 
-thread_local!(static RNG: RefCell<SmallRng> = RefCell::new(SmallRng::from_entropy()));
-
 #[inline(always)]
 fn random_in_unit_sphere() -> glm::Vec3 {
   let d = Uniform::from(0f32..1f32);
@@ -254,11 +284,9 @@ fn main() {
   };
   let mat_metal1 = Metal {
     albedo: glm::vec3(0.8, 0.6, 0.2),
-    fuzz: 0.
+    fuzz: 0.,
   };
-  let mat_dia1 = Dielectric {
-    ref_idx: 1.5,
-  };
+  let mat_dia1 = Dielectric { ref_idx: 1.5 };
 
   scene.spheres.push(Sphere {
     center: glm::vec3(0., 0., -1.),
@@ -278,6 +306,11 @@ fn main() {
   scene.spheres.push(Sphere {
     center: glm::vec3(-1., 0., -1.),
     radius: 0.5,
+    material: &mat_dia1,
+  });
+  scene.spheres.push(Sphere {
+    center: glm::vec3(-1., 0., -1.),
+    radius: -0.45,
     material: &mat_dia1,
   });
 
