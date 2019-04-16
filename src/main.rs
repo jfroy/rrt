@@ -66,7 +66,7 @@ impl<'obj> Hittable<'obj> for Sphere<'obj> {
     let b = glm::dot(&oc, &r.direction);
     let c = glm::dot(&oc, &oc) - (self.radius * self.radius);
     let discriminant = (b * b) - (a * c);
-    if discriminant < 0f32 {
+    if discriminant < 0. {
       return None;
     }
     let root_term_1 = -b / a;
@@ -146,7 +146,7 @@ impl Material for Metal {
       glm::reflect_vec(&r.direction.normalize(), &hit.normal) + self.fuzz * random_in_unit_sphere();
     let r = Ray { origin, direction };
     let attenuation = self.albedo;
-    if glm::dot(&direction, &hit.normal) > 0f32 {
+    if glm::dot(&direction, &hit.normal) > 0. {
       return Some(Scattered { r, attenuation });
     }
     None
@@ -156,24 +156,24 @@ impl Material for Metal {
 // Dielectric
 
 struct Dielectric {
-  eta: f32,
+  ref_idx: f32,
 }
 
 impl Material for Dielectric {
   fn scatter(&self, r: &Ray, hit: &Hit) -> Option<Scattered> {
     let unit_direction = r.direction.normalize();
     let reflected = glm::reflect_vec(&unit_direction, &hit.normal);
-    let attenuation = glm::vec3(1f32, 1f32, 1f32);
-    let direction_dot_n_positive = glm::dot(&r.direction, &hit.normal) > 0f32;
+    let attenuation = glm::vec3(1., 1., 1.);
+    let direction_dot_n_positive = glm::dot(&r.direction, &hit.normal) > 0.;
     let outward_normal = if direction_dot_n_positive {
       -hit.normal
     } else {
       hit.normal
     };
     let ni_over_nt = if direction_dot_n_positive {
-      self.eta
+      self.ref_idx
     } else {
-      1f32 / self.eta
+      1. / self.ref_idx
     };
     let refracted = glm::refract_vec(&unit_direction, &outward_normal, ni_over_nt);
     if refracted != glm::Vec3::zeros() {
@@ -207,7 +207,7 @@ impl Camera {
 
 // Traces a ray. This is `color` in the book.
 fn trace(r: &Ray, scene: &Scene, depth: i32) -> glm::Vec3 {
-  if let Some(hit) = scene.hit(r, 0.001f32, std::f32::MAX) {
+  if let Some(hit) = scene.hit(r, 0.001, std::f32::MAX) {
     if depth >= 50 {
       return glm::Vec3::zeros();
     }
@@ -216,10 +216,10 @@ fn trace(r: &Ray, scene: &Scene, depth: i32) -> glm::Vec3 {
     }
     return glm::Vec3::zeros();
   }
-  let white: glm::Vec3 = glm::Vec3::repeat(1f32);
-  let sky_blue: glm::Vec3 = glm::vec3(0.5f32, 0.7f32, 1.0f32);
+  let white: glm::Vec3 = glm::Vec3::repeat(1.);
+  let sky_blue: glm::Vec3 = glm::vec3(0.5, 0.7, 1.0);
   let unit_direction = r.direction.normalize();
-  let t = 0.5f32 * (unit_direction.y + 1.0f32);
+  let t = 0.5 * (unit_direction.y + 1.);
   glm::lerp(&white, &sky_blue, t)
 }
 
@@ -230,7 +230,7 @@ fn random_in_unit_sphere() -> glm::Vec3 {
   let d = Uniform::from(0f32..1f32);
   loop {
     let v = RNG.with(|rng_rc| glm::Vec3::from_distribution(&d, &mut *rng_rc.borrow_mut()));
-    let p = 2.0f32 * v - glm::Vec3::repeat(1f32);
+    let p = 2. * v - glm::Vec3::repeat(1.);
     if glm::dot(&p, &p) < 1.0 {
       return p;
     }
@@ -253,45 +253,45 @@ fn main() {
   };
 
   let mat_lamb1 = Lambertian {
-    albedo: glm::vec3(0.1f32, 0.2f32, 0.5f32),
+    albedo: glm::vec3(0.1, 0.2, 0.5),
   };
   let mat_lamb2 = Lambertian {
-    albedo: glm::vec3(0.8f32, 0.8f32, 0f32),
+    albedo: glm::vec3(0.8, 0.8, 0.),
   };
   let mat_metal1 = Metal {
-    albedo: glm::vec3(0.8f32, 0.6f32, 0.2f32),
-    fuzz: 0.0f32
+    albedo: glm::vec3(0.8, 0.6, 0.2),
+    fuzz: 0.
   };
   let mat_dia1 = Dielectric {
-    eta: 1.5f32,
+    ref_idx: 1.5,
   };
 
   scene.spheres.push(Sphere {
-    center: glm::vec3(0f32, 0f32, -1f32),
-    radius: 0.5f32,
+    center: glm::vec3(0., 0., -1.),
+    radius: 0.5,
     material: &mat_lamb1,
   });
   scene.spheres.push(Sphere {
-    center: glm::vec3(0f32, -100.5f32, -1f32),
-    radius: 100f32,
+    center: glm::vec3(0., -100.5, -1.),
+    radius: 100.,
     material: &mat_lamb2,
   });
   scene.spheres.push(Sphere {
-    center: glm::vec3(1f32, 0f32, -1f32),
-    radius: 0.5f32,
+    center: glm::vec3(1., 0., -1.),
+    radius: 0.5,
     material: &mat_metal1,
   });
   scene.spheres.push(Sphere {
-    center: glm::vec3(-1f32, 0f32, -1f32),
-    radius: 0.5f32,
+    center: glm::vec3(-1., 0., -1.),
+    radius: 0.5,
     material: &mat_dia1,
   });
 
   let cam = Camera {
-    lower_left_corner: glm::vec3(-2f32, -1f32, -1f32),
-    horizontal: glm::vec3(4f32, 0f32, 0f32),
-    vertical: glm::vec3(0f32, 2f32, 0f32),
-    origin: glm::vec3(0f32, 0f32, 0f32),
+    lower_left_corner: glm::vec3(-2., -1., -1.),
+    horizontal: glm::vec3(4., 0., 0.),
+    vertical: glm::vec3(0., 2., 0.),
+    origin: glm::vec3(0., 0., 0.),
   };
 
   let rd = Uniform::from(0f32..1f32);
@@ -308,13 +308,13 @@ fn main() {
       let mut c = glm::Vec3::zeros();
       for _ in 0..ns {
         let rv = RNG.with(|rng_rc| glm::Vec2::from_distribution(&rd, &mut *rng_rc.borrow_mut()));
-        let uv = (glm::vec2(*x, dim.y as f32 - *y + 1f32) + rv)
+        let uv = (glm::vec2(*x, dim.y as f32 - *y + 1.) + rv)
           .component_div(&glm::vec2(dim.x as f32, dim.y as f32));
         let r = cam.gen_ray(uv);
         c += trace(&r, &scene, 0);
       }
       // The book uses a simple gamma 2.0 function, not the sRGB OETF.
-      c.apply(|e| (e / (ns as f32)).sqrt() * 255.99f32);
+      c.apply(|e| (e / (ns as f32)).sqrt() * 255.99);
       vec![c.x as i32 as u8, c.y as i32 as u8, c.z as i32 as u8]
     })
     .collect();
