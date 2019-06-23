@@ -5,9 +5,9 @@ authors = ["Jean-Francois Roy <jf@devklog.net>"]
 edition = "2018"
 
 [dependencies]
-rand = "^0.6"
-nalgebra = "0.18.0"
-nalgebra-glm = "0.4.0"
-image = "0.21.0"
-rayon = "1.0.3"
-palette = "0.4.1"
+rand = "0.6"
+nalgebra = "0.18"
+nalgebra-glm = "0.4"
+image = "0.21"
+rayon = "1.1"
+palette = "0.4"
