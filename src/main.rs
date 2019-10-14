@@ -48,7 +48,7 @@ struct Hit<'obj> {
   t: f32,
   p: glm::Vec3,
   normal: glm::Vec3,
-  material: &'obj (Material + Sync),
+  material: &'obj (dyn Material + Sync),
 }
 
 trait Hittable<'obj> {
@@ -60,7 +60,7 @@ trait Hittable<'obj> {
 struct Sphere<'obj> {
   center: glm::Vec3,
   radius: f32,
-  material: &'obj (Material + Sync),
+  material: &'obj (dyn Material + Sync),
 }
 
 impl<'obj> Hittable<'obj> for Sphere<'obj> {
