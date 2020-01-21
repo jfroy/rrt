@@ -12,7 +12,13 @@ rayon = "1.3"
 vek = "0.9"
 
 [profile.release]
-codegen-units = 1
 debug = true
 lto = true
 opt-level = 3
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "benchmark"
+harness = false
