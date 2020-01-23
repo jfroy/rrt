@@ -262,28 +262,50 @@ struct Camera {
   horizontal: Vec3f,
   vertical: Vec3f,
   origin: Vec3f,
+  u: Vec3f,
+  v: Vec3f,
+  w: Vec3f,
+  lens_radius: f32,
 }
 
 impl Camera {
-  fn new(look_from: Vec3f, look_at: Vec3f, up: Vec3f, fov: f32, aspect: f32) -> Camera {
+  fn new(
+    origin: Vec3f,
+    look_at: Vec3f,
+    up: Vec3f,
+    fov: f32,
+    aspect: f32,
+    aperture: f32,
+    focus_dist: f32,
+  ) -> Camera {
     let theta = fov * std::f32::consts::PI / 180.;
-    let w = (look_from - look_at).normalized();
-    let u = up.cross(w).normalized();
-    let v = w.cross(u);
     let half_height = f32::tan(theta / 2.);
     let half_width = aspect * half_height;
+    let w = (origin - look_at).normalized();
+    let u = up.cross(w).normalized();
+    let v = w.cross(u);
     Camera {
-      lower_left_corner: look_from - (half_width * u) - (half_height * v) - w,
-      horizontal: 2. * half_width * u,
-      vertical: 2. * half_height * v,
-      origin: look_from,
+      lower_left_corner: origin
+        - (half_width * focus_dist * u)
+        - (half_height * focus_dist * v)
+        - focus_dist * w,
+      horizontal: 2. * half_width * focus_dist * u,
+      vertical: 2. * half_height * focus_dist * v,
+      origin,
+      u,
+      v,
+      w,
+      lens_radius: aperture / 2.,
     }
   }
 
   fn gen_ray(&self, s: f32, t: f32) -> Ray {
+    let rd = self.lens_radius * RNG.with(|rng_rc| Vec3f::in_unit_disc(&mut *rng_rc.borrow_mut()));
+    let offset = (self.u * rd.x) + (self.v * rd.y);
+    let origin = self.origin + offset;
     Ray {
-      origin: self.origin,
-      direction: self.lower_left_corner + (s * self.horizontal) + (t * self.vertical) - self.origin,
+      origin,
+      direction: self.lower_left_corner + (s * self.horizontal) + (t * self.vertical) - origin,
     }
   }
 }
@@ -351,12 +373,18 @@ pub fn tracescene(nx: usize, ny: usize, ns: usize) -> Vec<u8> {
     material: &mat_dia1,
   });
 
+  let look_from = Vec3f::new(3., 3., 2.);
+  let look_at = Vec3f::new(0., 0., -1.);
+  let dist_to_focus = (look_from - look_at).magnitude();
+  let aperture = 2.;
   let cam = Camera::new(
-    Vec3f::new(-2., 2., 1.),
-    Vec3f::new(0., 0., -1.),
+    look_from,
+    look_at,
     Vec3f::new(0., 1., 0.),
-    40.,
+    20.,
     nx as f32 / ny as f32,
+    aperture,
+    dist_to_focus,
   );
 
   const BYTES_PER_PIXEL: usize = 3;
