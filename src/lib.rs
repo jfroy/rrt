@@ -265,6 +265,21 @@ struct Camera {
 }
 
 impl Camera {
+  fn new(look_from: Vec3f, look_at: Vec3f, up: Vec3f, fov: f32, aspect: f32) -> Camera {
+    let theta = fov * std::f32::consts::PI / 180.;
+    let w = (look_from - look_at).normalized();
+    let u = up.cross(w).normalized();
+    let v = w.cross(u);
+    let half_height = f32::tan(theta / 2.);
+    let half_width = aspect * half_height;
+    Camera {
+      lower_left_corner: look_from - (half_width * u) - (half_height * v) - w,
+      horizontal: 2. * half_width * u,
+      vertical: 2. * half_height * v,
+      origin: look_from,
+    }
+  }
+
   fn gen_ray(&self, s: f32, t: f32) -> Ray {
     Ray {
       origin: self.origin,
@@ -336,12 +351,13 @@ pub fn tracescene(nx: usize, ny: usize, ns: usize) -> Vec<u8> {
     material: &mat_dia1,
   });
 
-  let cam = Camera {
-    lower_left_corner: Vec3f::new(-2., -1., -1.),
-    horizontal: Vec3f::new(4., 0., 0.),
-    vertical: Vec3f::new(0., 2., 0.),
-    origin: Vec3f::new(0., 0., 0.),
-  };
+  let cam = Camera::new(
+    Vec3f::new(-2., 2., 1.),
+    Vec3f::new(0., 0., -1.),
+    Vec3f::new(0., 1., 0.),
+    40.,
+    nx as f32 / ny as f32,
+  );
 
   const BYTES_PER_PIXEL: usize = 3;
   let mut pixels = vec![0u8; ny * nx * BYTES_PER_PIXEL];
