@@ -27,7 +27,7 @@ trait RngVector {
   /// https://rust-num.github.io/num/rand/trait.Rng.html#method.next_f32).
   ///
   /// This function does *not* create unit vectors.
-  fn with_rng<R: Rng + ?Sized>(rng: &mut R) -> Self;
+  fn with_rng(rng: &mut impl Rng) -> Self;
 
   /// Generates a random vector inside the unit sphere.
   fn in_unit_sphere(rng: &mut impl Rng) -> Self;
@@ -39,7 +39,7 @@ trait RngVector {
 
 impl RngVector for Vec3f {
   #[inline]
-  fn with_rng<R: Rng + ?Sized>(rng: &mut R) -> Vec3f {
+  fn with_rng(rng: &mut impl Rng) -> Vec3f {
     Vec3f::new(rng.gen(), rng.gen(), rng.gen())
   }
 
