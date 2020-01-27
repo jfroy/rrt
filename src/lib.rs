@@ -7,6 +7,7 @@ extern crate rayon;
 
 use rand::prelude::*;
 use rayon::prelude::*;
+use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::option::Option;
 use vek::Lerp;
@@ -89,27 +90,27 @@ trait Material {
 
 // Hittable
 
-struct Hit<'obj> {
+struct Hit<'scene> {
   t: f32,
   p: Vec3f,
   normal: Vec3f,
-  material: &'obj (dyn Material + Sync),
+  material: &'scene (dyn Material + Sync),
 }
 
-trait Hittable<'obj> {
-  fn hit(&self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit>;
+trait Hittable {
+  fn hit<'scene>(&'scene self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit<'scene>>;
 }
 
 // Sphere
 
-struct Sphere<'obj> {
+struct Sphere {
   center: Vec3f,
   radius: f32,
-  material: &'obj (dyn Material + Sync),
+  material: Box<dyn Material + Sync>,
 }
 
-impl<'obj> Hittable<'obj> for Sphere<'obj> {
-  fn hit(&self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit> {
+impl Hittable for Sphere {
+  fn hit<'scene>(&'scene self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit<'scene>> {
     let oc = r.origin - self.center;
     let a = r.direction.dot(r.direction);
     let b = oc.dot(r.direction);
@@ -127,7 +128,7 @@ impl<'obj> Hittable<'obj> for Sphere<'obj> {
         t: root,
         p: hit_p,
         normal: (hit_p - self.center) / self.radius,
-        material: self.material,
+        material: self.material.borrow(),
       });
     }
     let root = root_term_1 + root_term_2;
@@ -137,30 +138,10 @@ impl<'obj> Hittable<'obj> for Sphere<'obj> {
         t: root,
         p: hit_p,
         normal: (hit_p - self.center) / self.radius,
-        material: self.material,
+        material: self.material.borrow(),
       });
     }
     None
-  }
-}
-
-// Scene
-
-struct Scene<'obj> {
-  spheres: Vec<Sphere<'obj>>,
-}
-
-impl<'obj> Hittable<'obj> for Scene<'obj> {
-  fn hit(&self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit> {
-    let mut closest_t = t_max;
-    let mut closest_hit: Option<Hit> = None;
-    for sphere in &self.spheres {
-      if let Some(hit) = sphere.hit(r, t_min, closest_t) {
-        closest_t = hit.t;
-        closest_hit = Some(hit);
-      }
-    }
-    closest_hit
   }
 }
 
@@ -310,6 +291,26 @@ impl Camera {
   }
 }
 
+// Scene
+
+struct Scene {
+  spheres: Vec<Sphere>,
+}
+
+impl Hittable for Scene {
+  fn hit<'scene>(&'scene self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit<'scene>> {
+    let mut closest_t = t_max;
+    let mut closest_hit: Option<Hit> = None;
+    for sphere in &self.spheres {
+      if let Some(hit) = sphere.hit(r, t_min, closest_t) {
+        closest_t = hit.t;
+        closest_hit = Some(hit);
+      }
+    }
+    closest_hit
+  }
+}
+
 // main
 
 // Traces a ray. This is `color` in the book.
@@ -330,48 +331,47 @@ fn trace(r: &Ray, scene: &Scene, depth: i32) -> Vec3f {
   Lerp::lerp(WHITE, SKY_BLUE, t)
 }
 
-pub fn tracescene(nx: usize, ny: usize, ns: usize) -> Vec<u8> {
-  let mut scene: Scene = Scene {
-    spheres: Vec::new(),
-  };
-
-  let mat_lamb1 = Lambertian {
-    albedo: Vec3f::new(0.1, 0.2, 0.5),
-  };
-  let mat_lamb2 = Lambertian {
-    albedo: Vec3f::new(0.8, 0.8, 0.),
-  };
-  let mat_metal1 = Metal {
-    albedo: Vec3f::new(0.8, 0.6, 0.2),
-    fuzz: 0.3,
-  };
-  let mat_dia1 = Dielectric { ref_idx: 1.5 };
+fn chap11_scene() -> Scene {
+  let mut scene = Scene { spheres: vec![] };
 
   scene.spheres.push(Sphere {
     center: Vec3f::new(0., 0., -1.),
     radius: 0.5,
-    material: &mat_lamb1,
+    material: Box::new(Lambertian {
+      albedo: Vec3f::new(0.1, 0.2, 0.5),
+    }),
   });
   scene.spheres.push(Sphere {
     center: Vec3f::new(0., -100.5, -1.),
     radius: 100.,
-    material: &mat_lamb2,
+    material: Box::new(Lambertian {
+      albedo: Vec3f::new(0.8, 0.8, 0.),
+    }),
   });
   scene.spheres.push(Sphere {
     center: Vec3f::new(1., 0., -1.),
     radius: 0.5,
-    material: &mat_metal1,
+    material: Box::new(Metal {
+      albedo: Vec3f::new(0.8, 0.6, 0.2),
+      fuzz: 0.3,
+    }),
   });
   scene.spheres.push(Sphere {
     center: Vec3f::new(-1., 0., -1.),
     radius: 0.5,
-    material: &mat_dia1,
+    material: Box::new(Dielectric { ref_idx: 1.5 }),
   });
   scene.spheres.push(Sphere {
     center: Vec3f::new(-1., 0., -1.),
     radius: -0.45,
-    material: &mat_dia1,
+    material: Box::new(Dielectric { ref_idx: 1.5 }),
   });
+
+  scene
+}
+
+pub fn tracescene(nx: usize, ny: usize, ns: usize) -> Vec<u8> {
+  let scene = chap11_scene();
 
   let look_from = Vec3f::new(3., 3., 2.);
   let look_at = Vec3f::new(0., 0., -1.);
