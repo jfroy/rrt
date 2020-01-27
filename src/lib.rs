@@ -245,7 +245,7 @@ struct Camera {
   origin: Vec3f,
   u: Vec3f,
   v: Vec3f,
-  w: Vec3f,
+  #[allow(dead_code)] w: Vec3f,
   lens_radius: f32,
 }
 
@@ -331,7 +331,8 @@ fn trace(r: &Ray, scene: &Scene, depth: i32) -> Vec3f {
   Lerp::lerp(WHITE, SKY_BLUE, t)
 }
 
-fn chap11_scene() -> Scene {
+#[allow(dead_code)]
+fn chap11_scene(nx: usize, ny: usize) -> (Scene, Camera) {
   let mut scene = Scene { spheres: vec![] };
 
   scene.spheres.push(Sphere {
@@ -367,17 +368,11 @@ fn chap11_scene() -> Scene {
     material: Box::new(Dielectric { ref_idx: 1.5 }),
   });
 
-  scene
-}
-
-pub fn tracescene(nx: usize, ny: usize, ns: usize) -> Vec<u8> {
-  let scene = chap11_scene();
-
   let look_from = Vec3f::new(3., 3., 2.);
   let look_at = Vec3f::new(0., 0., -1.);
   let dist_to_focus = (look_from - look_at).magnitude();
   let aperture = 2.;
-  let cam = Camera::new(
+  let camera = Camera::new(
     look_from,
     look_at,
     Vec3f::new(0., 1., 0.),
@@ -386,6 +381,113 @@ pub fn tracescene(nx: usize, ny: usize, ns: usize) -> Vec<u8> {
     aperture,
     dist_to_focus,
   );
+
+  (scene, camera)
+}
+
+fn chap12_scene(nx: usize, ny: usize, rng: &mut impl Rng) -> (Scene, Camera) {
+  let mut scene = Scene { spheres: vec![] };
+
+  scene.spheres.push(Sphere {
+    center: Vec3f::new(0., -1000., 0.),
+    radius: 1000.,
+    material: Box::new(Lambertian {
+      albedo: Vec3f::new(0.5, 0.5, 0.5),
+    }),
+  });
+
+  for a in -11..11 {
+    for b in -11..11 {
+      let center = Vec3f::new(
+        a as f32 + 0.9 * rng.gen::<f32>(),
+        0.2,
+        b as f32 + 0.9 * rng.gen::<f32>(),
+      );
+      if (center - Vec3f::new(4., 0.2, 0.)).magnitude() > 0.9 {
+        let choose_mat = rng.gen::<f32>();
+        let sphere = if choose_mat < 0.8 {
+          // Diffuse
+          Sphere {
+            center,
+            radius: 0.2,
+            material: Box::new(Lambertian {
+              albedo: Vec3f::new(
+                rng.gen::<f32>() * rng.gen::<f32>(),
+                rng.gen::<f32>() * rng.gen::<f32>(),
+                rng.gen::<f32>() * rng.gen::<f32>(),
+              ),
+            }),
+          }
+        } else if choose_mat < 0.95 {
+          // Metal
+          Sphere {
+            center,
+            radius: 0.2,
+            material: Box::new(Metal {
+              albedo: Vec3f::new(
+                0.5 * (1. + rng.gen::<f32>()),
+                0.5 * (1. + rng.gen::<f32>()),
+                0.5 * (1. + rng.gen::<f32>()),
+              ),
+              fuzz: 0.5 * rng.gen::<f32>(),
+            }),
+          }
+        } else {
+          // Glass
+          Sphere {
+            center,
+            radius: 0.2,
+            material: Box::new(Dielectric { ref_idx: 1.5 }),
+          }
+        };
+        scene.spheres.push(sphere);
+      }
+    }
+  }
+
+  scene.spheres.push(Sphere {
+    center: Vec3f::new(0., 1., 0.),
+    radius: 1.,
+    material: Box::new(Dielectric { ref_idx: 1.5 }),
+  });
+  scene.spheres.push(Sphere {
+    center: Vec3f::new(-4., 1., 0.),
+    radius: 1.,
+    material: Box::new(Lambertian {
+      albedo: Vec3f::new(0.4, 0.2, 0.1),
+    }),
+  });
+  scene.spheres.push(Sphere {
+    center: Vec3f::new(4., 1., 0.),
+    radius: 1.,
+    material: Box::new(Metal {
+      albedo: Vec3f::new(0.7, 0.6, 0.5),
+      fuzz: 0.,
+    }),
+  });
+
+  let look_from = Vec3f::new(13., 2., 3.);
+  let look_at = Vec3f::new(0., 0., 0.);
+  let up = Vec3f::new(0., 1., 0.);
+  let fov = 20.;
+  let aspect = nx as f32 / ny as f32;
+  let aperture = 0.1;
+  let focus_dist = 10.;
+  let camera = Camera::new(
+    look_from,
+    look_at,
+    up,
+    fov,
+    aspect,
+    aperture,
+    focus_dist,
+  );
+
+  (scene, camera)
+}
+
+pub fn tracescene(nx: usize, ny: usize, ns: usize) -> Vec<u8> {
+  let (scene, camera) = RNG.with(|rng_rc| chap12_scene(nx, ny, &mut *rng_rc.borrow_mut()));
 
   const BYTES_PER_PIXEL: usize = 3;
   let mut pixels = vec![0u8; ny * nx * BYTES_PER_PIXEL];
@@ -401,7 +503,7 @@ pub fn tracescene(nx: usize, ny: usize, ns: usize) -> Vec<u8> {
           let mut rng = rng_rc.borrow_mut();
           (rng.gen::<f32>(), rng.gen::<f32>())
         });
-        let r = cam.gen_ray((x + rx) / nx as f32, (y + ry) / ny as f32);
+        let r = camera.gen_ray((x + rx) / nx as f32, (y + ry) / ny as f32);
         c += trace(&r, &scene, 0);
       }
       // The book uses a simple gamma 2.0 function, not the sRGB OETF.
