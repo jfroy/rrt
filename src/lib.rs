@@ -239,7 +239,8 @@ struct Camera {
   origin: Vec3f,
   u: Vec3f,
   v: Vec3f,
-  #[allow(dead_code)] w: Vec3f,
+  #[allow(dead_code)]
+  w: Vec3f,
   lens_radius: f32,
 }
 
