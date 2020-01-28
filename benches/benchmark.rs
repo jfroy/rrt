@@ -1,5 +1,3 @@
-#![warn(clippy::all)]
-
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 use rand::prelude::*;
 use rrt::tracescene;

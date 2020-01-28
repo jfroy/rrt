@@ -1,4 +1,4 @@
-#![warn(clippy::all)]
+#![allow(clippy::just_underscores_and_digits)]
 
 extern crate image;
 extern crate palette;

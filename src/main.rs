@@ -1,5 +1,3 @@
-#![warn(clippy::all)]
-
 use rand::prelude::*;
 use rrt::tracescene;
 
