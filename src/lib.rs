@@ -8,15 +8,10 @@ extern crate rayon;
 use rand::prelude::*;
 use rayon::prelude::*;
 use std::borrow::Borrow;
-use std::cell::RefCell;
 use std::option::Option;
 use vek::Lerp;
 
 type Vec3f = vek::vec::Vec3<f32>;
-
-// RNG
-
-thread_local!(static RNG: RefCell<SmallRng> = RefCell::new(SmallRng::from_entropy()));
 
 // vek::Vec traits
 
@@ -153,8 +148,7 @@ struct Lambertian {
 
 impl Material for Lambertian {
   fn scatter(&self, _: &Ray, hit: &Hit) -> Option<Scattered> {
-    let target =
-      hit.p + hit.normal + RNG.with(|rng_rc| Vec3f::in_unit_sphere(&mut *rng_rc.borrow_mut()));
+    let target = hit.p + hit.normal + Vec3f::in_unit_sphere(&mut thread_rng());
     let origin = hit.p;
     let direction = target - hit.p;
     let r = Ray { origin, direction };
@@ -174,7 +168,7 @@ impl Material for Metal {
   fn scatter(&self, r: &Ray, hit: &Hit) -> Option<Scattered> {
     let origin = hit.p;
     let direction = r.direction.normalized().reflected(hit.normal)
-      + self.fuzz * RNG.with(|rng_rc| Vec3f::in_unit_sphere(&mut *rng_rc.borrow_mut()));
+      + self.fuzz * Vec3f::in_unit_sphere(&mut thread_rng());
     let r = Ray { origin, direction };
     let attenuation = self.albedo;
     if direction.dot(hit.normal) > 0. {
@@ -220,7 +214,7 @@ impl Material for Dielectric {
     } else {
       1.
     };
-    let r = if RNG.with(|rng_rc| rng_rc.borrow_mut().gen::<f32>()) < reflect_prob {
+    let r = if thread_rng().gen::<f32>() < reflect_prob {
       Ray {
         origin: hit.p,
         direction: reflected,
@@ -281,7 +275,7 @@ impl Camera {
   }
 
   fn gen_ray(&self, s: f32, t: f32) -> Ray {
-    let rd = self.lens_radius * RNG.with(|rng_rc| Vec3f::in_unit_disc(&mut *rng_rc.borrow_mut()));
+    let rd = self.lens_radius * Vec3f::in_unit_disc(&mut thread_rng());
     let offset = (self.u * rd.x) + (self.v * rd.y);
     let origin = self.origin + offset;
     Ray {
@@ -473,21 +467,13 @@ fn chap12_scene(nx: usize, ny: usize, rng: &mut impl Rng) -> (Scene, Camera) {
   let aspect = nx as f32 / ny as f32;
   let aperture = 0.1;
   let focus_dist = 10.;
-  let camera = Camera::new(
-    look_from,
-    look_at,
-    up,
-    fov,
-    aspect,
-    aperture,
-    focus_dist,
-  );
+  let camera = Camera::new(look_from, look_at, up, fov, aspect, aperture, focus_dist);
 
   (scene, camera)
 }
 
-pub fn tracescene(nx: usize, ny: usize, ns: usize) -> Vec<u8> {
-  let (scene, camera) = RNG.with(|rng_rc| chap12_scene(nx, ny, &mut *rng_rc.borrow_mut()));
+pub fn tracescene(nx: usize, ny: usize, ns: usize, rng: &mut impl Rng) -> Vec<u8> {
+  let (scene, camera) = chap12_scene(nx, ny, rng);
 
   const BYTES_PER_PIXEL: usize = 3;
   let mut pixels = vec![0u8; ny * nx * BYTES_PER_PIXEL];
@@ -495,16 +481,16 @@ pub fn tracescene(nx: usize, ny: usize, ns: usize) -> Vec<u8> {
     .par_chunks_mut(BYTES_PER_PIXEL)
     .enumerate()
     .for_each(|(idx, chunk)| {
+      let mut rng = thread_rng();
       let x = (idx % nx) as f32;
       let y = (ny - 1 - idx / nx) as f32;
       let mut c = Vec3f::zero();
       for _ in 0..ns {
-        let (rx, ry) = RNG.with(|rng_rc| {
-          let mut rng = rng_rc.borrow_mut();
-          (rng.gen::<f32>(), rng.gen::<f32>())
-        });
-        let r = camera.gen_ray((x + rx) / nx as f32, (y + ry) / ny as f32);
-        c += trace(&r, &scene, 0);
+        let ray = camera.gen_ray(
+          (x + rng.gen::<f32>()) / nx as f32,
+          (y + rng.gen::<f32>()) / ny as f32,
+        );
+        c += trace(&ray, &scene, 0);
       }
       // The book uses a simple gamma 2.0 function, not the sRGB OETF.
       c.apply(|e| (e / (ns as f32)).sqrt() * 255.99);
