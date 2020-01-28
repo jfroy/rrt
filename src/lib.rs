@@ -19,27 +19,27 @@ trait RngVector {
   /// Makes a new random vector using `rng`.
   ///
   /// Each component will be in the half-open range `[0,1)` (see
-  /// https://rust-num.github.io/num/rand/trait.Rng.html#method.next_f32).
+  /// https://rust-random.github.io/rand/rand/distributions/struct.Standard.html#floating-point-implementation.
   ///
   /// This function does *not* create unit vectors.
-  fn with_rng(rng: &mut impl Rng) -> Self;
+  fn with_rng<R: Rng + ?Sized>(rng: &mut R) -> Self;
 
   /// Generates a random vector inside the unit sphere.
-  fn in_unit_sphere(rng: &mut impl Rng) -> Self;
+  fn in_unit_sphere<R: Rng + ?Sized>(rng: &mut R) -> Self;
 
   /// Generates a random vector inside the unit disc in the XY plane. The Z
   /// component shall be 0.
-  fn in_unit_disc(rng: &mut impl Rng) -> Self;
+  fn in_unit_disc<R: Rng + ?Sized>(rng: &mut R) -> Self;
 }
 
 impl RngVector for Vec3f {
   #[inline]
-  fn with_rng(rng: &mut impl Rng) -> Vec3f {
+  fn with_rng<R: Rng + ?Sized>(rng: &mut R) -> Vec3f {
     Vec3f::new(rng.gen(), rng.gen(), rng.gen())
   }
 
   #[inline]
-  fn in_unit_sphere(rng: &mut impl Rng) -> Vec3f {
+  fn in_unit_sphere<R: Rng + ?Sized>(rng: &mut R) -> Vec3f {
     loop {
       let v = 2. * Vec3f::with_rng(rng) - Vec3f::broadcast(1.);
       if v.dot(v) < 1. {
@@ -49,7 +49,7 @@ impl RngVector for Vec3f {
   }
 
   #[inline]
-  fn in_unit_disc(rng: &mut impl Rng) -> Vec3f {
+  fn in_unit_disc<R: Rng + ?Sized>(rng: &mut R) -> Vec3f {
     loop {
       let v = 2. * Vec3f::new(rng.gen(), rng.gen(), 0.) - Vec3f::new(1., 1., 0.);
       if v.dot(v) < 1. {
@@ -380,7 +380,7 @@ fn chap11_scene(nx: usize, ny: usize) -> (Scene, Camera) {
   (scene, camera)
 }
 
-fn chap12_scene(nx: usize, ny: usize, rng: &mut impl Rng) -> (Scene, Camera) {
+fn chap12_scene<R: Rng + ?Sized>(nx: usize, ny: usize, rng: &mut R) -> (Scene, Camera) {
   let mut scene = Scene { spheres: vec![] };
 
   scene.spheres.push(Sphere {
@@ -473,7 +473,7 @@ fn chap12_scene(nx: usize, ny: usize, rng: &mut impl Rng) -> (Scene, Camera) {
   (scene, camera)
 }
 
-pub fn tracescene(nx: usize, ny: usize, ns: usize, rng: &mut impl Rng) -> Vec<u8> {
+pub fn tracescene<R: Rng + ?Sized>(nx: usize, ny: usize, ns: usize, rng: &mut R) -> Vec<u8> {
   let (scene, camera) = chap12_scene(nx, ny, rng);
 
   const BYTES_PER_PIXEL: usize = 3;
