@@ -1,6 +1,7 @@
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 use rand::prelude::*;
 use rrt::tracescene;
+use std::time::Duration;
 
 pub fn criterion_benchmark(c: &mut Criterion) {
   c.bench_function("tracescene/10x10x4", move |b| {
@@ -15,5 +16,10 @@ pub fn criterion_benchmark(c: &mut Criterion) {
   });
 }
 
-criterion_group!(benches, criterion_benchmark);
+criterion_group! {
+  name = benches;
+  config = Criterion::default().measurement_time(Duration::new(10, 0));
+  targets = criterion_benchmark
+}
+
 criterion_main!(benches);
