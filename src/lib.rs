@@ -11,7 +11,7 @@ use std::borrow::Borrow;
 use std::option::Option;
 use vek::Lerp;
 
-type Vec3f = vek::vec::Vec3<f32>;
+type Vec3f = vek::vec::repr_simd::vec3::Vec3<f32>;
 
 // vek::Vec traits
 
