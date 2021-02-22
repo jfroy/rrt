@@ -10,19 +10,22 @@ use rayon::prelude::*;
 use std::borrow::Borrow;
 use std::option::Option;
 use vek::Lerp;
+use vek::vec::repr_simd::*;
 
-type Vec3f = vek::vec::repr_c::vec3::Vec3<f32>;
+type Vec3f = vec3::Vec3<f32>;
+type Vec4f = vec4::Vec4<f32>;
+type Rgbf32 = rgb::Rgb<f32>;
 
 // vek::Vec traits
 
 trait RngVector {
-  /// Makes a new random vector using `rng`.
+  /// Makes a new random direction vector using `rng`.
   ///
   /// Each component will be in the half-open range `[0,1)` (see
   /// https://rust-random.github.io/rand/rand/distributions/struct.Standard.html#floating-point-implementation.
   ///
   /// This function does *not* create unit vectors.
-  fn with_rng<R: Rng + ?Sized>(rng: &mut R) -> Self;
+  fn new_rng_direction<R: Rng + ?Sized>(rng: &mut R) -> Self;
 
   /// Generates a random vector inside the unit sphere.
   fn in_unit_sphere<R: Rng + ?Sized>(rng: &mut R) -> Self;
@@ -32,16 +35,16 @@ trait RngVector {
   fn in_unit_disc<R: Rng + ?Sized>(rng: &mut R) -> Self;
 }
 
-impl RngVector for Vec3f {
+impl RngVector for Vec4f {
   #[inline]
-  fn with_rng<R: Rng + ?Sized>(rng: &mut R) -> Vec3f {
-    Vec3f::new(rng.gen(), rng.gen(), rng.gen())
+  fn new_rng_direction<R: Rng + ?Sized>(rng: &mut R) -> Vec4f {
+    Vec4f::new(rng.gen(), rng.gen(), rng.gen(), 0.)
   }
 
   #[inline]
-  fn in_unit_sphere<R: Rng + ?Sized>(rng: &mut R) -> Vec3f {
+  fn in_unit_sphere<R: Rng + ?Sized>(rng: &mut R) -> Vec4f {
     loop {
-      let v = 2. * Vec3f::with_rng(rng) - Vec3f::broadcast(1.);
+      let v = 2. * Vec4f::new_rng_direction(rng) - Vec4f::new_direction(1., 1., 1.);
       if v.dot(v) < 1. {
         return v;
       }
@@ -49,9 +52,9 @@ impl RngVector for Vec3f {
   }
 
   #[inline]
-  fn in_unit_disc<R: Rng + ?Sized>(rng: &mut R) -> Vec3f {
+  fn in_unit_disc<R: Rng + ?Sized>(rng: &mut R) -> Vec4f {
     loop {
-      let v = 2. * Vec3f::new(rng.gen(), rng.gen(), 0.) - Vec3f::new(1., 1., 0.);
+      let v = 2. * Vec4f::new(rng.gen(), rng.gen(), 0., 0.) - Vec4f::new(1., 1., 0., 0.);
       if v.dot(v) < 1. {
         return v;
       }
@@ -62,12 +65,12 @@ impl RngVector for Vec3f {
 // Ray
 
 struct Ray {
-  origin: Vec3f,
-  direction: Vec3f,
+  origin: Vec4f,
+  direction: Vec4f,
 }
 
 impl Ray {
-  fn point_at_parameter(&self, t: f32) -> Vec3f {
+  fn point_at_parameter(&self, t: f32) -> Vec4f {
     self.origin + (t * self.direction)
   }
 }
@@ -76,7 +79,7 @@ impl Ray {
 
 struct Scattered {
   r: Ray,
-  attenuation: Vec3f,
+  attenuation: Vec4f,
 }
 
 trait Material {
@@ -87,8 +90,8 @@ trait Material {
 
 struct Hit<'scene> {
   t: f32,
-  p: Vec3f,
-  normal: Vec3f,
+  p: Vec4f,
+  normal: Vec4f,
   material: &'scene (dyn Material + Sync),
 }
 
@@ -99,7 +102,7 @@ trait Hittable {
 // Sphere
 
 struct Sphere {
-  center: Vec3f,
+  center: Vec4f,
   radius: f32,
   material: Box<dyn Material + Sync>,
 }
@@ -143,12 +146,12 @@ impl Hittable for Sphere {
 // Lambertian
 
 struct Lambertian {
-  albedo: Vec3f,
+  albedo: Vec4f,
 }
 
 impl Material for Lambertian {
   fn scatter(&self, _: &Ray, hit: &Hit) -> Option<Scattered> {
-    let target = hit.p + hit.normal + Vec3f::in_unit_sphere(&mut thread_rng());
+    let target = hit.p + hit.normal + Vec4f::in_unit_sphere(&mut thread_rng());
     let origin = hit.p;
     let direction = target - hit.p;
     let r = Ray { origin, direction };
@@ -160,7 +163,7 @@ impl Material for Lambertian {
 // Metal
 
 struct Metal {
-  albedo: Vec3f,
+  albedo: Vec4f,
   fuzz: f32,
 }
 
@@ -168,7 +171,7 @@ impl Material for Metal {
   fn scatter(&self, r: &Ray, hit: &Hit) -> Option<Scattered> {
     let origin = hit.p;
     let direction = r.direction.normalized().reflected(hit.normal)
-      + self.fuzz * Vec3f::in_unit_sphere(&mut thread_rng());
+      + self.fuzz * Vec4f::in_unit_sphere(&mut thread_rng());
     let r = Ray { origin, direction };
     let attenuation = self.albedo;
     if direction.dot(hit.normal) > 0. {
@@ -209,7 +212,7 @@ impl Material for Dielectric {
       )
     };
     let refracted = unit_direction.refracted(outward_normal, ni_over_nt);
-    let reflect_prob = if refracted != Vec3f::zero() {
+    let reflect_prob = if refracted != Vec4f::zero() {
       schlick(cosine, self.ref_idx)
     } else {
       1.
@@ -225,7 +228,7 @@ impl Material for Dielectric {
         direction: refracted,
       }
     };
-    let attenuation = Vec3f::broadcast(1.);
+    let attenuation = Vec4f::new(1., 1., 1., 0.);
     Some(Scattered { r, attenuation })
   }
 }
@@ -233,22 +236,22 @@ impl Material for Dielectric {
 // Camera
 
 struct Camera {
-  lower_left_corner: Vec3f,
-  horizontal: Vec3f,
-  vertical: Vec3f,
-  origin: Vec3f,
-  u: Vec3f,
-  v: Vec3f,
+  lower_left_corner: Vec4f,
+  horizontal: Vec4f,
+  vertical: Vec4f,
+  origin: Vec4f,
+  u: Vec4f,
+  v: Vec4f,
   #[allow(dead_code)]
-  w: Vec3f,
+  w: Vec4f,
   lens_radius: f32,
 }
 
 impl Camera {
   fn new(
-    origin: Vec3f,
-    look_at: Vec3f,
-    up: Vec3f,
+    origin: Vec4f,
+    look_at: Vec4f,
+    up: Vec4f,
     fov: f32,
     aspect: f32,
     aperture: f32,
@@ -258,25 +261,25 @@ impl Camera {
     let half_height = f32::tan(theta / 2.);
     let half_width = aspect * half_height;
     let w = (origin - look_at).normalized();
-    let u = up.cross(w).normalized();
-    let v = w.cross(u);
+    let u = Vec3f::from(up).cross(Vec3f::from(w)).normalized();
+    let v = Vec3f::from(w).cross(u);
     Camera {
       lower_left_corner: origin
         - (half_width * focus_dist * u)
         - (half_height * focus_dist * v)
         - focus_dist * w,
-      horizontal: 2. * half_width * focus_dist * u,
-      vertical: 2. * half_height * focus_dist * v,
+      horizontal: Vec4f::from_direction(2. * half_width * focus_dist * u),
+      vertical: Vec4f::from_direction(2. * half_height * focus_dist * v),
       origin,
-      u,
-      v,
+      u: Vec4f::from_direction(u),
+      v: Vec4f::from_direction(v),
       w,
       lens_radius: aperture / 2.,
     }
   }
 
   fn gen_ray(&self, s: f32, t: f32) -> Ray {
-    let rd = self.lens_radius * Vec3f::in_unit_disc(&mut thread_rng());
+    let rd = self.lens_radius * Vec4f::in_unit_disc(&mut thread_rng());
     let offset = (self.u * rd.x) + (self.v * rd.y);
     let origin = self.origin + offset;
     Ray {
@@ -309,18 +312,18 @@ impl Hittable for Scene {
 // main
 
 // Traces a ray. This is `color` in the book.
-fn trace(r: &Ray, scene: &Scene, depth: i32) -> Vec3f {
+fn trace(r: &Ray, scene: &Scene, depth: i32) -> Rgbf32 {
   if let Some(hit) = scene.hit(r, 0.001, std::f32::MAX) {
     if depth >= 50 {
-      return Vec3f::zero();
+      return Rgbf32::black();
     }
     if let Some(sc) = hit.material.scatter(r, &hit) {
-      return sc.attenuation * trace(&sc.r, scene, depth + 1);
+      return Rgbf32::from(Vec3f::from(sc.attenuation)) * trace(&sc.r, scene, depth + 1);
     }
-    return Vec3f::zero();
+    return Rgbf32::black();
   }
-  const WHITE: Vec3f = Vec3f::new(1., 1., 1.);
-  const SKY_BLUE: Vec3f = Vec3f::new(0.5, 0.7, 1.0);
+  const WHITE: Rgbf32 = Rgbf32::new(1., 1., 1.);
+  const SKY_BLUE: Rgbf32 = Rgbf32::new(0.5, 0.7, 1.);
   let unit_direction = r.direction.normalized();
   let t = 0.5 * (unit_direction.y + 1.);
   Lerp::lerp(WHITE, SKY_BLUE, t)
@@ -331,46 +334,46 @@ fn chap11_scene(nx: usize, ny: usize) -> (Scene, Camera) {
   let mut scene = Scene { spheres: vec![] };
 
   scene.spheres.push(Sphere {
-    center: Vec3f::new(0., 0., -1.),
+    center: Vec4f::new_point(0., 0., -1.),
     radius: 0.5,
     material: Box::new(Lambertian {
-      albedo: Vec3f::new(0.1, 0.2, 0.5),
+      albedo: Vec4f::new(0.1, 0.2, 0.5, 1.),
     }),
   });
   scene.spheres.push(Sphere {
-    center: Vec3f::new(0., -100.5, -1.),
+    center: Vec4f::new_point(0., -100.5, -1.),
     radius: 100.,
     material: Box::new(Lambertian {
-      albedo: Vec3f::new(0.8, 0.8, 0.),
+      albedo: Vec4f::new(0.8, 0.8, 0., 1.),
     }),
   });
   scene.spheres.push(Sphere {
-    center: Vec3f::new(1., 0., -1.),
+    center: Vec4f::new_point(1., 0., -1.),
     radius: 0.5,
     material: Box::new(Metal {
-      albedo: Vec3f::new(0.8, 0.6, 0.2),
+      albedo: Vec4f::new(0.8, 0.6, 0.2, 1.),
       fuzz: 0.3,
     }),
   });
   scene.spheres.push(Sphere {
-    center: Vec3f::new(-1., 0., -1.),
+    center: Vec4f::new_point(-1., 0., -1.),
     radius: 0.5,
     material: Box::new(Dielectric { ref_idx: 1.5 }),
   });
   scene.spheres.push(Sphere {
-    center: Vec3f::new(-1., 0., -1.),
+    center: Vec4f::new_point(-1., 0., -1.),
     radius: -0.45,
     material: Box::new(Dielectric { ref_idx: 1.5 }),
   });
 
-  let look_from = Vec3f::new(3., 3., 2.);
-  let look_at = Vec3f::new(0., 0., -1.);
+  let look_from = Vec4f::new_point(3., 3., 2.);
+  let look_at = Vec4f::new_point(0., 0., -1.);
   let dist_to_focus = (look_from - look_at).magnitude();
   let aperture = 2.;
   let camera = Camera::new(
     look_from,
     look_at,
-    Vec3f::new(0., 1., 0.),
+    Vec4f::new_direction(0., 1., 0.),
     20.,
     nx as f32 / ny as f32,
     aperture,
@@ -384,21 +387,21 @@ fn chap12_scene<R: Rng + ?Sized>(nx: usize, ny: usize, rng: &mut R) -> (Scene, C
   let mut scene = Scene { spheres: vec![] };
 
   scene.spheres.push(Sphere {
-    center: Vec3f::new(0., -1000., 0.),
+    center: Vec4f::new_point(0., -1000., 0.),
     radius: 1000.,
     material: Box::new(Lambertian {
-      albedo: Vec3f::new(0.5, 0.5, 0.5),
+      albedo: Vec4f::new(0.5, 0.5, 0.5, 1.),
     }),
   });
 
   for a in -11..11 {
     for b in -11..11 {
-      let center = Vec3f::new(
+      let center = Vec4f::new_point(
         a as f32 + 0.9 * rng.gen::<f32>(),
         0.2,
         b as f32 + 0.9 * rng.gen::<f32>(),
       );
-      if (center - Vec3f::new(4., 0.2, 0.)).magnitude() > 0.9 {
+      if (center - Vec4f::new_point(4., 0.2, 0.)).magnitude() > 0.9 {
         let choose_mat = rng.gen::<f32>();
         let sphere = if choose_mat < 0.8 {
           // Diffuse
@@ -406,10 +409,11 @@ fn chap12_scene<R: Rng + ?Sized>(nx: usize, ny: usize, rng: &mut R) -> (Scene, C
             center,
             radius: 0.2,
             material: Box::new(Lambertian {
-              albedo: Vec3f::new(
+              albedo: Vec4f::new(
                 rng.gen::<f32>() * rng.gen::<f32>(),
                 rng.gen::<f32>() * rng.gen::<f32>(),
                 rng.gen::<f32>() * rng.gen::<f32>(),
+                1.,
               ),
             }),
           }
@@ -419,10 +423,11 @@ fn chap12_scene<R: Rng + ?Sized>(nx: usize, ny: usize, rng: &mut R) -> (Scene, C
             center,
             radius: 0.2,
             material: Box::new(Metal {
-              albedo: Vec3f::new(
+              albedo: Vec4f::new(
                 0.5 * (1. + rng.gen::<f32>()),
                 0.5 * (1. + rng.gen::<f32>()),
                 0.5 * (1. + rng.gen::<f32>()),
+                1.
               ),
               fuzz: 0.5 * rng.gen::<f32>(),
             }),
@@ -441,29 +446,29 @@ fn chap12_scene<R: Rng + ?Sized>(nx: usize, ny: usize, rng: &mut R) -> (Scene, C
   }
 
   scene.spheres.push(Sphere {
-    center: Vec3f::new(0., 1., 0.),
+    center: Vec4f::new_point(0., 1., 0.),
     radius: 1.,
     material: Box::new(Dielectric { ref_idx: 1.5 }),
   });
   scene.spheres.push(Sphere {
-    center: Vec3f::new(-4., 1., 0.),
+    center: Vec4f::new_point(-4., 1., 0.),
     radius: 1.,
     material: Box::new(Lambertian {
-      albedo: Vec3f::new(0.4, 0.2, 0.1),
+      albedo: Vec4f::new_point(0.4, 0.2, 0.1),
     }),
   });
   scene.spheres.push(Sphere {
-    center: Vec3f::new(4., 1., 0.),
+    center: Vec4f::new_point(4., 1., 0.),
     radius: 1.,
     material: Box::new(Metal {
-      albedo: Vec3f::new(0.7, 0.6, 0.5),
+      albedo: Vec4f::new_point(0.7, 0.6, 0.5),
       fuzz: 0.,
     }),
   });
 
-  let look_from = Vec3f::new(13., 2., 3.);
-  let look_at = Vec3f::new(0., 0., 0.);
-  let up = Vec3f::new(0., 1., 0.);
+  let look_from = Vec4f::new_point(13., 2., 3.);
+  let look_at = Vec4f::new_point(0., 0., 0.);
+  let up = Vec4f::new_direction(0., 1., 0.);
   let fov = 20.;
   let aspect = nx as f32 / ny as f32;
   let aperture = 0.1;
@@ -485,7 +490,7 @@ pub fn tracescene<R: Rng + ?Sized>(nx: usize, ny: usize, ns: usize, rng: &mut R)
       let mut rng = thread_rng();
       let x = (idx % nx) as f32;
       let y = (ny - 1 - idx / nx) as f32;
-      let mut c = Vec3f::zero();
+      let mut c = Rgbf32::black();
       for _ in 0..ns {
         let ray = camera.gen_ray(
           (x + rng.gen::<f32>()) / nx as f32,
@@ -495,9 +500,9 @@ pub fn tracescene<R: Rng + ?Sized>(nx: usize, ny: usize, ns: usize, rng: &mut R)
       }
       // The book uses a simple gamma 2.0 function, not the sRGB OETF.
       c.apply(|e| (e / (ns as f32)).sqrt() * 255.99);
-      chunk[0] = c.x as u8;
-      chunk[1] = c.y as u8;
-      chunk[2] = c.z as u8;
+      chunk[0] = c.r as u8;
+      chunk[1] = c.g as u8;
+      chunk[2] = c.b as u8;
     });
   pixels
 }
