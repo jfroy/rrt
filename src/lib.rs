@@ -1,20 +1,32 @@
 #![allow(clippy::just_underscores_and_digits)]
 
 extern crate image;
-extern crate palette;
 extern crate rand;
 extern crate rayon;
 
-use rand::prelude::*;
+use rand::{Rng, SeedableRng};
 use rayon::prelude::*;
 use std::borrow::Borrow;
+use std::cell::UnsafeCell;
 use std::option::Option;
-use vek::Lerp;
+use std::ptr::NonNull;
+use std::sync::Mutex;
 use vek::vec::repr_simd::*;
+use vek::Lerp;
 
 type Vec3f = vec3::Vec3<f32>;
 type Vec4f = vec4::Vec4<f32>;
 type Rgbf32 = rgb::Rgb<f32>;
+
+// RNG
+
+/// The [xoshiro](http://xoshiro.di.unimi.it/) generator is particularly well
+/// suited for path tracing: it is a best-in-class PRNG (from a statistical and
+/// performance POV), it supports an efficient jump-ahead operation which is
+/// essential to prevent threads from having similar patterns, and its
+/// implementation supports simd generation (with rust nightly) which is useful
+/// to generate random vectors.
+pub type RttRng = rand_xoshiro::Xoshiro128Plus;
 
 // vek::Vec traits
 
@@ -25,24 +37,24 @@ trait RngVector {
   /// https://rust-random.github.io/rand/rand/distributions/struct.Standard.html#floating-point-implementation.
   ///
   /// This function does *not* create unit vectors.
-  fn new_rng_direction<R: Rng + ?Sized>(rng: &mut R) -> Self;
+  fn new_rng_direction(rng: &mut RttRng) -> Self;
 
   /// Generates a random vector inside the unit sphere.
-  fn in_unit_sphere<R: Rng + ?Sized>(rng: &mut R) -> Self;
+  fn in_unit_sphere(rng: &mut RttRng) -> Self;
 
   /// Generates a random vector inside the unit disc in the XY plane. The Z
   /// component shall be 0.
-  fn in_unit_disc<R: Rng + ?Sized>(rng: &mut R) -> Self;
+  fn in_unit_disc(rng: &mut RttRng) -> Self;
 }
 
 impl RngVector for Vec4f {
   #[inline]
-  fn new_rng_direction<R: Rng + ?Sized>(rng: &mut R) -> Vec4f {
+  fn new_rng_direction(rng: &mut RttRng) -> Vec4f {
     Vec4f::new(rng.gen(), rng.gen(), rng.gen(), 0.)
   }
 
   #[inline]
-  fn in_unit_sphere<R: Rng + ?Sized>(rng: &mut R) -> Vec4f {
+  fn in_unit_sphere(rng: &mut RttRng) -> Vec4f {
     loop {
       let v = 2. * Vec4f::new_rng_direction(rng) - Vec4f::new_direction(1., 1., 1.);
       if v.dot(v) < 1. {
@@ -52,7 +64,7 @@ impl RngVector for Vec4f {
   }
 
   #[inline]
-  fn in_unit_disc<R: Rng + ?Sized>(rng: &mut R) -> Vec4f {
+  fn in_unit_disc(rng: &mut RttRng) -> Vec4f {
     loop {
       let v = 2. * Vec4f::new(rng.gen(), rng.gen(), 0., 0.) - Vec4f::new(1., 1., 0., 0.);
       if v.dot(v) < 1. {
@@ -83,7 +95,7 @@ struct Scattered {
 }
 
 trait Material {
-  fn scatter(&self, r: &Ray, hit: &Hit) -> Option<Scattered>;
+  fn scatter(&self, r: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<Scattered>;
 }
 
 // Hittable
@@ -150,8 +162,8 @@ struct Lambertian {
 }
 
 impl Material for Lambertian {
-  fn scatter(&self, _: &Ray, hit: &Hit) -> Option<Scattered> {
-    let target = hit.p + hit.normal + Vec4f::in_unit_sphere(&mut thread_rng());
+  fn scatter(&self, _: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<Scattered> {
+    let target = hit.p + hit.normal + Vec4f::in_unit_sphere(rng);
     let origin = hit.p;
     let direction = target - hit.p;
     let r = Ray { origin, direction };
@@ -168,10 +180,10 @@ struct Metal {
 }
 
 impl Material for Metal {
-  fn scatter(&self, r: &Ray, hit: &Hit) -> Option<Scattered> {
+  fn scatter(&self, r: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<Scattered> {
     let origin = hit.p;
-    let direction = r.direction.normalized().reflected(hit.normal)
-      + self.fuzz * Vec4f::in_unit_sphere(&mut thread_rng());
+    let direction =
+      r.direction.normalized().reflected(hit.normal) + self.fuzz * Vec4f::in_unit_sphere(rng);
     let r = Ray { origin, direction };
     let attenuation = self.albedo;
     if direction.dot(hit.normal) > 0. {
@@ -194,7 +206,7 @@ struct Dielectric {
 }
 
 impl Material for Dielectric {
-  fn scatter(&self, r: &Ray, hit: &Hit) -> Option<Scattered> {
+  fn scatter(&self, r: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<Scattered> {
     let unit_direction = r.direction.normalized();
     let reflected = unit_direction.reflected(hit.normal);
     let dir_dot_normal = r.direction.dot(hit.normal);
@@ -217,7 +229,7 @@ impl Material for Dielectric {
     } else {
       1.
     };
-    let r = if thread_rng().gen::<f32>() < reflect_prob {
+    let r = if rng.gen::<f32>() < reflect_prob {
       Ray {
         origin: hit.p,
         direction: reflected,
@@ -235,7 +247,7 @@ impl Material for Dielectric {
 
 // Camera
 
-struct Camera {
+pub struct Camera {
   lower_left_corner: Vec4f,
   horizontal: Vec4f,
   vertical: Vec4f,
@@ -278,8 +290,8 @@ impl Camera {
     }
   }
 
-  fn gen_ray(&self, s: f32, t: f32) -> Ray {
-    let rd = self.lens_radius * Vec4f::in_unit_disc(&mut thread_rng());
+  fn gen_ray(&self, s: f32, t: f32, rng: &mut RttRng) -> Ray {
+    let rd = self.lens_radius * Vec4f::in_unit_disc(rng);
     let offset = (self.u * rd.x) + (self.v * rd.y);
     let origin = self.origin + offset;
     Ray {
@@ -291,7 +303,7 @@ impl Camera {
 
 // Scene
 
-struct Scene {
+pub struct Scene {
   spheres: Vec<Sphere>,
 }
 
@@ -309,16 +321,14 @@ impl Hittable for Scene {
   }
 }
 
-// main
-
 // Traces a ray. This is `color` in the book.
-fn trace(r: &Ray, scene: &Scene, depth: i32) -> Rgbf32 {
+fn trace(r: &Ray, scene: &Scene, depth: i32, rng: &mut RttRng) -> Rgbf32 {
   if let Some(hit) = scene.hit(r, 0.001, std::f32::MAX) {
     if depth >= 50 {
       return Rgbf32::black();
     }
-    if let Some(sc) = hit.material.scatter(r, &hit) {
-      return Rgbf32::from(Vec3f::from(sc.attenuation)) * trace(&sc.r, scene, depth + 1);
+    if let Some(sc) = hit.material.scatter(r, &hit, rng) {
+      return Rgbf32::from(Vec3f::from(sc.attenuation)) * trace(&sc.r, scene, depth + 1, rng);
     }
     return Rgbf32::black();
   }
@@ -330,7 +340,7 @@ fn trace(r: &Ray, scene: &Scene, depth: i32) -> Rgbf32 {
 }
 
 #[allow(dead_code)]
-fn chap11_scene(nx: usize, ny: usize) -> (Scene, Camera) {
+pub fn chap11_scene(nx: usize, ny: usize) -> (Scene, Camera) {
   let mut scene = Scene { spheres: vec![] };
 
   scene.spheres.push(Sphere {
@@ -383,7 +393,7 @@ fn chap11_scene(nx: usize, ny: usize) -> (Scene, Camera) {
   (scene, camera)
 }
 
-fn chap12_scene<R: Rng + ?Sized>(nx: usize, ny: usize, rng: &mut R) -> (Scene, Camera) {
+pub fn chap12_scene(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene, Camera) {
   let mut scene = Scene { spheres: vec![] };
 
   scene.spheres.push(Sphere {
@@ -427,7 +437,7 @@ fn chap12_scene<R: Rng + ?Sized>(nx: usize, ny: usize, rng: &mut R) -> (Scene, C
                 0.5 * (1. + rng.gen::<f32>()),
                 0.5 * (1. + rng.gen::<f32>()),
                 0.5 * (1. + rng.gen::<f32>()),
-                1.
+                1.,
               ),
               fuzz: 0.5 * rng.gen::<f32>(),
             }),
@@ -478,31 +488,64 @@ fn chap12_scene<R: Rng + ?Sized>(nx: usize, ny: usize, rng: &mut R) -> (Scene, C
   (scene, camera)
 }
 
-pub fn tracescene<R: Rng + ?Sized>(nx: usize, ny: usize, ns: usize, rng: &mut R) -> Vec<u8> {
-  let (scene, camera) = chap12_scene(nx, ny, rng);
+thread_local!(static THREAD_RNG_KEY: UnsafeCell<RttRng> = UnsafeCell::new(RttRng::seed_from_u64(0)));
 
+// Create a rayon thread pool with a start handler that installs a suitable rng
+// for the thread. Each thread's RNG is built from the provided RNG doing
+// `thread_index` jumps.
+pub fn init_pool_with_rng(rng: RttRng) -> rayon::ThreadPool {
+  let rng_mutex = Mutex::new(rng);
+  rayon::ThreadPoolBuilder::new()
+    .start_handler(move |idx| {
+      let raw = THREAD_RNG_KEY.with(|uc| uc.get());
+      let mut nn = NonNull::new(raw).unwrap();
+      let mut rng = rng_mutex.lock().unwrap().clone();
+      for _ in 0..idx {
+        rng.jump();
+      }
+      unsafe {
+        *nn.as_mut() = rng;
+      }
+    })
+    .build()
+    .unwrap()
+}
+
+pub fn tracescene(
+  nx: usize,
+  ny: usize,
+  ns: usize,
+  scene: &Scene,
+  camera: &Camera,
+  pool: &rayon::ThreadPool,
+) -> Vec<u8> {
   const BYTES_PER_PIXEL: usize = 3;
   let mut pixels = vec![0u8; ny * nx * BYTES_PER_PIXEL];
-  pixels
-    .par_chunks_mut(BYTES_PER_PIXEL)
-    .enumerate()
-    .for_each(|(idx, chunk)| {
-      let mut rng = thread_rng();
-      let x = (idx % nx) as f32;
-      let y = (ny - 1 - idx / nx) as f32;
-      let mut c = Rgbf32::black();
-      for _ in 0..ns {
-        let ray = camera.gen_ray(
-          (x + rng.gen::<f32>()) / nx as f32,
-          (y + rng.gen::<f32>()) / ny as f32,
-        );
-        c += trace(&ray, &scene, 0);
-      }
-      // The book uses a simple gamma 2.0 function, not the sRGB OETF.
-      c.apply(|e| (e / (ns as f32)).sqrt() * 255.99);
-      chunk[0] = c.r as u8;
-      chunk[1] = c.g as u8;
-      chunk[2] = c.b as u8;
-    });
+  pool.install(|| {
+    pixels
+      .par_chunks_mut(BYTES_PER_PIXEL)
+      .enumerate()
+      .for_each(|(idx, chunk)| {
+        let raw = THREAD_RNG_KEY.with(|uc| uc.get());
+        let mut nn = NonNull::new(raw).unwrap();
+        let mut rng = unsafe { nn.as_mut() };
+        let x = (idx % nx) as f32;
+        let y = (ny - 1 - idx / nx) as f32;
+        let mut c = Rgbf32::black();
+        for _ in 0..ns {
+          let ray = camera.gen_ray(
+            (x + rng.gen::<f32>()) / nx as f32,
+            (y + rng.gen::<f32>()) / ny as f32,
+            &mut rng,
+          );
+          c += trace(&ray, scene, 0, &mut rng);
+        }
+        // The book uses a simple gamma 2.0 function, not the sRGB OETF.
+        c.apply(|e| (e / (ns as f32)).sqrt() * 255.99);
+        chunk[0] = c.r as u8;
+        chunk[1] = c.g as u8;
+        chunk[2] = c.b as u8;
+      });
+  });
   pixels
 }
