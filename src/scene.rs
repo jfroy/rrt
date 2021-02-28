@@ -1,3 +1,5 @@
+#![allow(clippy::suspicious_operation_groupings)]
+
 use super::materials::*;
 use super::types::*;
 use std::borrow::Borrow;
