@@ -1,6 +1,8 @@
 use clap::{App, Arg};
-use rand::SeedableRng;
-use rrt::{chap12_scene, init_pool_with_rng, tracescene, RttRng};
+use rrt::chap12::*;
+use rrt::rng::*;
+use rrt::threadpool::*;
+use rrt::tracescene;
 
 fn main() {
   let arg_matches = App::new("rrt")
