@@ -1,6 +1,7 @@
 // Provides random number generation.
 
 use super::types::*;
+use rand::distributions::Uniform;
 pub use rand::Rng;
 pub use rand::SeedableRng;
 
@@ -15,42 +16,41 @@ pub type RttRng = rand_xoshiro::Xoshiro128Plus;
 // vek::Vec traits
 
 pub trait RngVector {
-  /// Makes a new random direction vector using `rng`.
-  ///
-  /// Each component will be in the half-open range `[0,1)` (see
-  /// https://rust-random.github.io/rand/rand/distributions/struct.Standard.html#floating-point-implementation.
-  ///
-  /// This function does *not* create unit vectors.
-  fn new_rng_direction(rng: &mut RttRng) -> Self;
+  /// Generates a random vector inside the unit sphere from a uniform
+  /// distribution.
+  fn gen_uniform_random_in_unit_sphere(rng: &mut RttRng) -> Self;
 
-  /// Generates a random vector inside the unit sphere.
-  fn in_unit_sphere(rng: &mut RttRng) -> Self;
+  /// Generates a random vector inside the unit disc in the XY plane from a
+  /// uniform distribution. The Z component shall be 0.
+  fn gen_uniform_random_in_unit_disc(rng: &mut RttRng) -> Self;
 
-  /// Generates a random vector inside the unit disc in the XY plane. The Z
-  /// component shall be 0.
-  fn in_unit_disc(rng: &mut RttRng) -> Self;
+  /// Generates a random unit vector from a uniform distribution.
+  fn gen_uniform_random_unit(rng: &mut RttRng) -> Self;
 }
 
 impl RngVector for Vec4f {
-  fn new_rng_direction(rng: &mut RttRng) -> Vec4f {
-    Vec4f::new(rng.gen(), rng.gen(), rng.gen(), 0.)
-  }
-
-  fn in_unit_sphere(rng: &mut RttRng) -> Vec4f {
+  fn gen_uniform_random_in_unit_sphere(rng: &mut RttRng) -> Vec4f {
+    let d = Uniform::new_inclusive(-1., 1.);
     loop {
-      let v = 2. * Vec4f::new_rng_direction(rng) - Vec4f::new_direction(1., 1., 1.);
+      let v = Vec4f::new(rng.sample(d), rng.sample(d), rng.sample(d), 0.);
       if v.dot(v) < 1. {
         return v;
       }
     }
   }
 
-  fn in_unit_disc(rng: &mut RttRng) -> Vec4f {
+  fn gen_uniform_random_in_unit_disc(rng: &mut RttRng) -> Vec4f {
+    let d = Uniform::new_inclusive(-1., 1.);
     loop {
-      let v = 2. * Vec4f::new(rng.gen(), rng.gen(), 0., 0.) - Vec4f::new(1., 1., 0., 0.);
+      let v = Vec4f::new(rng.sample(d), rng.sample(d), 0., 0.);
       if v.dot(v) < 1. {
         return v;
       }
     }
+  }
+
+  fn gen_uniform_random_unit(rng: &mut RttRng) -> Vec4f {
+    let v = Vec4f::gen_uniform_random_in_unit_sphere(rng);
+    v.normalized()
   }
 }

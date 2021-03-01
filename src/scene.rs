@@ -24,35 +24,35 @@ impl Hittable for Sphere {
   fn hit<'scene>(&'scene self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit<'scene>> {
     let oc = r.origin - self.center;
     let a = r.direction.dot(r.direction);
-    let b = oc.dot(r.direction);
+    let half_b = oc.dot(r.direction);
     let c = oc.dot(oc) - (self.radius * self.radius);
-    let discriminant = (b * b) - (a * c);
+    let discriminant = (half_b * half_b) - (a * c);
     if discriminant < 0. {
       return None;
     }
-    let root_term_1 = -b / a;
-    let root_term_2 = (discriminant).sqrt() / a;
-    let root = root_term_1 - root_term_2;
-    if root < t_max && root > t_min {
-      let hit_p = r.point_at_parameter(root);
-      return Some(Hit {
-        t: root,
-        p: hit_p,
-        normal: (hit_p - self.center) / self.radius,
-        material: self.material.borrow(),
-      });
+    let discriminant_sqrt = discriminant.sqrt();
+    let mut root = (-half_b - discriminant_sqrt) / a;
+    if root < t_min || t_max < root {
+      root = (-half_b + discriminant_sqrt) / a;
+      if root < t_min || t_max < root {
+        return None;
+      }
     }
-    let root = root_term_1 + root_term_2;
-    if root < t_max && root > t_min {
-      let hit_p = r.point_at_parameter(root);
-      return Some(Hit {
-        t: root,
-        p: hit_p,
-        normal: (hit_p - self.center) / self.radius,
-        material: self.material.borrow(),
-      });
-    }
-    None
+    let p = r.point_at_parameter(root);
+    let outward_normal = (p - self.center) / self.radius;
+    let front_face = r.direction.dot(outward_normal) < 0.;
+    let normal = if front_face {
+      outward_normal
+    } else {
+      -outward_normal
+    };
+    Some(Hit {
+      p,
+      normal,
+      t: root,
+      material: self.material.borrow(),
+      front_face,
+    })
   }
 }
 

@@ -11,10 +11,11 @@ pub trait Material {
 }
 
 pub struct Hit<'scene> {
-  pub t: f32,
   pub p: Vec4f,
   pub normal: Vec4f,
+  pub t: f32,
   pub material: &'scene (dyn Material + Sync),
+  pub front_face: bool,
 }
 
 // Lambertian
@@ -24,13 +25,19 @@ pub struct Lambertian {
 }
 
 impl Material for Lambertian {
-  fn scatter(&self, _: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<Scattered> {
-    let target = hit.p + hit.normal + Vec4f::in_unit_sphere(rng);
-    let origin = hit.p;
-    let direction = target - hit.p;
-    let r = Ray { origin, direction };
-    let attenuation = self.albedo;
-    Some(Scattered { r, attenuation })
+  fn scatter(&self, _r_in: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<Scattered> {
+    let direction = hit.normal + Vec4f::gen_uniform_random_unit(rng);
+    Some(Scattered {
+      r: Ray {
+        origin: hit.p,
+        direction: if direction.is_approx_zero() {
+          hit.normal
+        } else {
+          direction
+        },
+      },
+      attenuation: self.albedo,
+    })
   }
 }
 
@@ -42,22 +49,27 @@ pub struct Metal {
 }
 
 impl Material for Metal {
-  fn scatter(&self, r: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<Scattered> {
-    let origin = hit.p;
-    let direction =
-      r.direction.normalized().reflected(hit.normal) + self.fuzz * Vec4f::in_unit_sphere(rng);
-    let r = Ray { origin, direction };
-    let attenuation = self.albedo;
+  fn scatter(&self, r_in: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<Scattered> {
+    let direction = r_in.direction.normalized().reflected(hit.normal)
+      + self.fuzz * Vec4f::gen_uniform_random_in_unit_sphere(rng);
     if direction.dot(hit.normal) > 0. {
-      return Some(Scattered { r, attenuation });
+      Some(Scattered {
+        r: Ray {
+          origin: hit.p,
+          direction,
+        },
+        attenuation: self.albedo,
+      })
+    } else {
+      None
     }
-    None
   }
 }
 
 // Dielectric
 
-fn schlick(cosine: f32, ref_idx: f32) -> f32 {
+fn reflectance(cosine: f32, ref_idx: f32) -> f32 {
+  // Use Schlick's approximation for reflectance.
   let r0 = ((1. - ref_idx) / (1. + ref_idx)).powf(2.);
   r0 + (1. - r0) * (1. - cosine).powf(5.)
 }
@@ -67,41 +79,31 @@ pub struct Dielectric {
 }
 
 impl Material for Dielectric {
-  fn scatter(&self, r: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<Scattered> {
-    let unit_direction = r.direction.normalized();
-    let reflected = unit_direction.reflected(hit.normal);
-    let dir_dot_normal = r.direction.dot(hit.normal);
-    let (outward_normal, ni_over_nt, cosine) = if dir_dot_normal > 0. {
-      (
-        -hit.normal,
-        self.ref_idx,
-        self.ref_idx * dir_dot_normal / r.direction.magnitude(),
-      )
+  fn scatter(&self, r_in: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<Scattered> {
+    let refraction_ratio = if hit.front_face {
+      1. / self.ref_idx
     } else {
-      (
-        hit.normal,
-        1. / self.ref_idx,
-        -dir_dot_normal / r.direction.magnitude(),
-      )
+      self.ref_idx
     };
-    let refracted = unit_direction.refracted(outward_normal, ni_over_nt);
-    let reflect_prob = if refracted != Vec4f::zero() {
-      schlick(cosine, self.ref_idx)
+
+    let unit_direction = r_in.direction.normalized();
+    let cos_theta = (-unit_direction).dot(hit.normal).min(1.);
+    let sin_theta = (1. - (cos_theta * cos_theta)).sqrt();
+
+    let cannot_refract = refraction_ratio * sin_theta > 1.;
+    let direction = if cannot_refract || reflectance(cos_theta, refraction_ratio) > rng.gen::<f32>()
+    {
+      unit_direction.reflected(hit.normal)
     } else {
-      1.
+      unit_direction.refracted(hit.normal, refraction_ratio)
     };
-    let r = if rng.gen::<f32>() < reflect_prob {
-      Ray {
+
+    Some(Scattered {
+      r: Ray {
         origin: hit.p,
-        direction: reflected,
-      }
-    } else {
-      Ray {
-        origin: hit.p,
-        direction: refracted,
-      }
-    };
-    let attenuation = Vec4f::new(1., 1., 1., 0.);
-    Some(Scattered { r, attenuation })
+        direction,
+      },
+      attenuation: Vec4f::new(1., 1., 1., 0.),
+    })
   }
 }

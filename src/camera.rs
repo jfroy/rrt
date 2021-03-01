@@ -45,7 +45,7 @@ impl Camera {
   }
 
   pub fn gen_ray(&self, s: f32, t: f32, rng: &mut RttRng) -> Ray {
-    let rd = self.lens_radius * Vec4f::in_unit_disc(rng);
+    let rd = self.lens_radius * Vec4f::gen_uniform_random_in_unit_disc(rng);
     let offset = (self.u * rd.x) + (self.v * rd.y);
     let origin = self.origin + offset;
     Ray {
