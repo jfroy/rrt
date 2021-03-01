@@ -25,6 +25,20 @@ fn main() {
         .default_value("10")
         .about("samples per pixel"),
     )
+    .arg(
+      Arg::new("seed")
+        .long("seed")
+        .short('e')
+        .takes_value(true)
+        .default_value("0")
+        .about("rng seed"),
+    )
+    .arg(
+      Arg::new("random")
+        .long("random")
+        .short('m')
+        .about("use a random rng seed"),
+    )
     .get_matches();
   let (w, h) = match parse_resolution(arg_matches.value_of("resolution")) {
     Some(v) => v,
@@ -33,17 +47,27 @@ fn main() {
       return;
     }
   };
-  let samples = match parse_samples(arg_matches.value_of("samples")) {
+  let samples: usize = match parse_arg(arg_matches.value_of("samples")) {
     Some(v) => v,
     None => {
       eprintln!("invalid sample count");
       return;
     }
   };
+  let mut rng: RttRng = if arg_matches.is_present("random") {
+    RttRng::from_entropy()
+  } else {
+    match parse_arg(arg_matches.value_of("seed")) {
+      Some(v) => RttRng::seed_from_u64(v),
+      None => {
+        eprintln!("invalid rng seed");
+        return;
+      }
+    }
+  };
 
   eprintln!("Rendering {} x {} image using {} samples.", w, h, samples);
 
-  let mut rng = RttRng::seed_from_u64(0);
   let (scene, camera) = chap12_scene(w, h, &mut rng);
   let pool = init_pool_with_rng(rng);
   let pixels = tracescene(w, h, samples, &scene, &camera, &pool);
@@ -77,8 +101,8 @@ fn parse_resolution(s: Option<&str>) -> Option<(usize, usize)> {
   Some((w, h))
 }
 
-fn parse_samples(s: Option<&str>) -> Option<usize> {
-  match s?.parse::<usize>() {
+fn parse_arg<T: std::str::FromStr>(s: Option<&str>) -> Option<T> {
+  match s?.parse::<T>() {
     Ok(n) => Some(n),
     Err(_) => None,
   }
