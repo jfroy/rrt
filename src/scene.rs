@@ -7,9 +7,9 @@ use std::borrow::Borrow;
 pub struct Sphere {
   pub center0: Vec4f,
   pub center1: Vec4f,
-  pub radius: f32,
   pub time0: f32,
   pub time1: f32,
+  pub radius: f32,
   pub material: Box<dyn Material + Sync>,
 }
 
@@ -34,9 +34,9 @@ impl Sphere {
     Sphere {
       center0: s.center,
       center1: s.center,
-      radius: s.radius,
       time0: 0.,
       time1: 1.,
+      radius: s.radius,
       material: s.material,
     }
   }

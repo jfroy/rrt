@@ -1,5 +1,5 @@
 use clap::{App, Arg};
-use rrt::chap12::*;
+use rrt::book2chap2::*;
 use rrt::rng::*;
 use rrt::threadpool::*;
 use rrt::tracescene;
@@ -68,7 +68,7 @@ fn main() {
 
   eprintln!("Rendering {} x {} image using {} samples.", w, h, samples);
 
-  let (scene, camera) = chap12_scene(w, h, &mut rng);
+  let (scene, camera) = book2_chap2_scene(w, h, &mut rng);
   let pool = init_pool_with_rng(rng);
   let pixels = tracescene(w, h, samples, &scene, &camera, &pool);
   image::save_buffer(

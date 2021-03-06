@@ -1,5 +1,6 @@
 #![allow(clippy::just_underscores_and_digits)]
 
+pub mod book2chap2;
 pub mod chap11;
 pub mod chap12;
 pub mod rng;
