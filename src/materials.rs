@@ -25,7 +25,7 @@ pub struct Lambertian {
 }
 
 impl Material for Lambertian {
-  fn scatter(&self, _r_in: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<Scattered> {
+  fn scatter(&self, r_in: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<Scattered> {
     let direction = hit.normal + Vec4f::gen_uniform_random_unit(rng);
     Some(Scattered {
       r: Ray {
@@ -35,6 +35,7 @@ impl Material for Lambertian {
         } else {
           direction
         },
+        time: r_in.time,
       },
       attenuation: self.albedo,
     })
@@ -57,6 +58,7 @@ impl Material for Metal {
         r: Ray {
           origin: hit.p,
           direction,
+          time: r_in.time,
         },
         attenuation: self.albedo,
       })
@@ -102,6 +104,7 @@ impl Material for Dielectric {
       r: Ray {
         origin: hit.p,
         direction,
+        time: r_in.time,
       },
       attenuation: Vec4f::new(1., 1., 1., 0.),
     })

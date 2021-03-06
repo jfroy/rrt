@@ -5,6 +5,15 @@ use super::types::*;
 use std::borrow::Borrow;
 
 pub struct Sphere {
+  pub center0: Vec4f,
+  pub center1: Vec4f,
+  pub radius: f32,
+  pub time0: f32,
+  pub time1: f32,
+  pub material: Box<dyn Material + Sync>,
+}
+
+pub struct StationarySphere {
   pub center: Vec4f,
   pub radius: f32,
   pub material: Box<dyn Material + Sync>,
@@ -20,9 +29,27 @@ pub trait Hittable {
 
 // Sphere
 
+impl Sphere {
+  pub fn from(s: StationarySphere) -> Sphere {
+    Sphere {
+      center0: s.center,
+      center1: s.center,
+      radius: s.radius,
+      time0: 0.,
+      time1: 1.,
+      material: s.material,
+    }
+  }
+
+  fn center(&self, t: f32) -> Vec4f {
+    self.center0 + ((t - self.time0) / (self.time1 - self.time0)) * (self.center1 - self.center0)
+  }
+}
+
 impl Hittable for Sphere {
   fn hit<'scene>(&'scene self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit<'scene>> {
-    let oc = r.origin - self.center;
+    let center = self.center(r.time);
+    let oc = r.origin - center;
     let a = r.direction.dot(r.direction);
     let half_b = oc.dot(r.direction);
     let c = oc.dot(oc) - (self.radius * self.radius);
@@ -39,7 +66,7 @@ impl Hittable for Sphere {
       }
     }
     let p = r.point_at_parameter(root);
-    let outward_normal = (p - self.center) / self.radius;
+    let outward_normal = (p - center) / self.radius;
     let front_face = r.direction.dot(outward_normal) < 0.;
     let normal = if front_face {
       outward_normal

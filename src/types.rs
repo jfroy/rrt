@@ -9,6 +9,7 @@ pub type Rgbf32 = rgb::Rgb<f32>;
 pub struct Ray {
   pub origin: Vec4f,
   pub direction: Vec4f,
+  pub time: f32,
 }
 
 impl Ray {
