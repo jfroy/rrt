@@ -17,3 +17,8 @@ impl Ray {
     self.origin + (t * self.direction)
   }
 }
+
+pub struct ScatteredRay {
+  pub r: Ray,
+  pub attenuation: Vec4f,
+}

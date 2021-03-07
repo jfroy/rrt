@@ -1,13 +1,8 @@
 use super::rng::*;
 use super::types::*;
 
-pub struct Scattered {
-  pub r: Ray,
-  pub attenuation: Vec4f,
-}
-
 pub trait Material {
-  fn scatter(&self, r: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<Scattered>;
+  fn scatter(&self, r: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<ScatteredRay>;
 }
 
 pub struct Hit<'scene> {
@@ -25,9 +20,9 @@ pub struct Lambertian {
 }
 
 impl Material for Lambertian {
-  fn scatter(&self, r_in: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<Scattered> {
+  fn scatter(&self, r: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<ScatteredRay> {
     let direction = hit.normal + Vec4f::gen_uniform_random_unit(rng);
-    Some(Scattered {
+    Some(ScatteredRay {
       r: Ray {
         origin: hit.p,
         direction: if direction.is_approx_zero() {
@@ -35,7 +30,7 @@ impl Material for Lambertian {
         } else {
           direction
         },
-        time: r_in.time,
+        time: r.time,
       },
       attenuation: self.albedo,
     })
@@ -50,15 +45,15 @@ pub struct Metal {
 }
 
 impl Material for Metal {
-  fn scatter(&self, r_in: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<Scattered> {
-    let direction = r_in.direction.normalized().reflected(hit.normal)
+  fn scatter(&self, r: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<ScatteredRay> {
+    let direction = r.direction.normalized().reflected(hit.normal)
       + self.fuzz * Vec4f::gen_uniform_random_in_unit_sphere(rng);
     if direction.dot(hit.normal) > 0. {
-      Some(Scattered {
+      Some(ScatteredRay {
         r: Ray {
           origin: hit.p,
           direction,
-          time: r_in.time,
+          time: r.time,
         },
         attenuation: self.albedo,
       })
@@ -81,14 +76,14 @@ pub struct Dielectric {
 }
 
 impl Material for Dielectric {
-  fn scatter(&self, r_in: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<Scattered> {
+  fn scatter(&self, r: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<ScatteredRay> {
     let refraction_ratio = if hit.front_face {
       1. / self.ref_idx
     } else {
       self.ref_idx
     };
 
-    let unit_direction = r_in.direction.normalized();
+    let unit_direction = r.direction.normalized();
     let cos_theta = (-unit_direction).dot(hit.normal).min(1.);
     let sin_theta = (1. - (cos_theta * cos_theta)).sqrt();
 
@@ -100,11 +95,11 @@ impl Material for Dielectric {
       unit_direction.refracted(hit.normal, refraction_ratio)
     };
 
-    Some(Scattered {
+    Some(ScatteredRay {
       r: Ray {
         origin: hit.p,
         direction,
-        time: r_in.time,
+        time: r.time,
       },
       attenuation: Vec4f::new(1., 1., 1., 0.),
     })
