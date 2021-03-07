@@ -1,5 +1,6 @@
 #![allow(clippy::suspicious_operation_groupings)]
 
+use super::acceleration::*;
 use super::materials::*;
 use super::types::*;
 use std::borrow::Borrow;
@@ -21,10 +22,6 @@ pub struct StationarySphere {
 
 pub struct Scene {
   pub spheres: Vec<Sphere>,
-}
-
-pub trait Hittable {
-  fn hit<'scene>(&'scene self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit<'scene>>;
 }
 
 // Sphere
@@ -81,6 +78,18 @@ impl Hittable for Sphere {
       front_face,
     })
   }
+
+  fn aabb(&self, time0: f32, time1: f32) -> Option<Aabb> {
+    let box0 = Aabb {
+      minimum: self.center(time0) - Vec4f::broadcast(self.radius).with_w(0.),
+      maximum: self.center(time0) + Vec4f::broadcast(self.radius).with_w(0.),
+    };
+    let box1 = Aabb {
+      minimum: self.center(time1) - Vec4f::broadcast(self.radius).with_w(0.),
+      maximum: self.center(time1) + Vec4f::broadcast(self.radius).with_w(0.),
+    };
+    Some(Aabb::surrounding(box0, box1))
+  }
 }
 
 // Scene
@@ -96,5 +105,20 @@ impl Hittable for Scene {
       }
     }
     closest_hit
+  }
+
+  fn aabb(&self, time0: f32, time1: f32) -> Option<Aabb> {
+    if self.spheres.is_empty() {
+      return None;
+    }
+    let mut bb = Aabb::zero();
+    for sphere in &self.spheres {
+      if let Some(aabb) = sphere.aabb(time0, time1) {
+        bb = Aabb::surrounding(bb, aabb);
+      } else {
+        return None;
+      }
+    }
+    Some(bb)
   }
 }

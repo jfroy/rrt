@@ -1,5 +1,6 @@
 #![allow(clippy::just_underscores_and_digits)]
 
+pub mod acceleration;
 pub mod book2chap2;
 pub mod chap11;
 pub mod chap12;
@@ -12,6 +13,7 @@ mod scene;
 mod types;
 
 use camera::*;
+use materials::*;
 use rayon::prelude::*;
 use rng::*;
 use scene::*;

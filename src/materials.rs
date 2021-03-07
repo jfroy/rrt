@@ -1,8 +1,14 @@
+use super::acceleration::*;
 use super::rng::*;
 use super::types::*;
 
 pub trait Material {
   fn scatter(&self, r: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<ScatteredRay>;
+}
+
+pub trait Hittable {
+  fn hit<'scene>(&'scene self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit<'scene>>;
+  fn aabb(&self, time0: f32, time1: f32) -> Option<Aabb>;
 }
 
 pub struct Hit<'scene> {
