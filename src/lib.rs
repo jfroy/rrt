@@ -18,6 +18,7 @@ use rayon::prelude::*;
 use rng::*;
 use scene::*;
 use std::ptr::NonNull;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use threadpool::*;
 use types::*;
 use vek::Lerp;
@@ -47,6 +48,7 @@ pub fn tracescene(
   scene: &Scene,
   camera: &Camera,
   pool: &rayon::ThreadPool,
+  pdc: &AtomicUsize,
 ) -> Vec<u8> {
   const BYTES_PER_PIXEL: usize = 3;
   let mut pixels = vec![0u8; ny * nx * BYTES_PER_PIXEL];
@@ -74,6 +76,7 @@ pub fn tracescene(
         chunk[0] = c.r as u8;
         chunk[1] = c.g as u8;
         chunk[2] = c.b as u8;
+        pdc.fetch_add(1, Ordering::Relaxed);
       });
   });
   pixels

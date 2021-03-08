@@ -4,6 +4,7 @@ use rrt::chap12::*;
 use rrt::rng::*;
 use rrt::threadpool::*;
 use rrt::tracescene;
+use std::sync::atomic::AtomicUsize;
 use std::time::Duration;
 
 pub fn criterion_benchmark(c: &mut Criterion) {
@@ -19,7 +20,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
     // to accumulate.
     b.iter_batched(
       || (),
-      |_| tracescene(NX, NY, NS, &scene, &camera, &pool),
+      |_| tracescene(NX, NY, NS, &scene, &camera, &pool, &AtomicUsize::new(0)),
       BatchSize::SmallInput,
     );
   });

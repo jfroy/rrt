@@ -1,8 +1,12 @@
 use clap::{App, Arg};
+use pbr::ProgressBar;
 use rrt::book2chap2::*;
 use rrt::rng::*;
 use rrt::threadpool::*;
 use rrt::tracescene;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::{thread, time};
 
 fn main() {
   let arg_matches = App::new("rrt")
@@ -47,7 +51,7 @@ fn main() {
       return;
     }
   };
-  let samples: usize = match parse_arg(arg_matches.value_of("samples")) {
+  let spp: usize = match parse_arg(arg_matches.value_of("samples")) {
     Some(v) => v,
     None => {
       eprintln!("invalid sample count");
@@ -66,11 +70,33 @@ fn main() {
     }
   };
 
-  eprintln!("Rendering {} x {} image using {} samples.", w, h, samples);
+  eprintln!(
+    "Rendering {} x {} image using {} samples per pixel.",
+    w, h, spp
+  );
+
+  let pxcount = Arc::new(AtomicUsize::new(0));
+  let ui_pxcount = Arc::clone(&pxcount);
+  let ui_thread = thread::Builder::new()
+    .name("ui".to_string())
+    .spawn(move || {
+      let t = w * h;
+      let mut pb = ProgressBar::new((t) as u64);
+      loop {
+        let x = ui_pxcount.load(Ordering::Relaxed);
+        pb.set(x as u64);
+        thread::sleep(time::Duration::from_secs(1));
+        if x >= t {
+          break;
+        }
+      }
+    })
+    .unwrap();
 
   let (scene, camera) = book2_chap2_scene(w, h, &mut rng);
   let pool = init_pool_with_rng(rng);
-  let pixels = tracescene(w, h, samples, &scene, &camera, &pool);
+  let pixels = tracescene(w, h, spp, &scene, &camera, &pool, &pxcount);
+  ui_thread.join().unwrap();
   image::save_buffer(
     "o.ppm",
     &pixels[..],
