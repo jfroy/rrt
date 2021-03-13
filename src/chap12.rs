@@ -6,6 +6,9 @@ use super::sphere::*;
 use super::types::*;
 
 pub fn chap12_scene<'a>(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene<'a>, Camera) {
+    // Clone the RNG for BVH construction to keep it independent from the scene.
+    let mut bvh_rng = rng.clone();
+
     let mut scene = Scene::new();
 
     scene.spheres.push(Sphere::from(StationarySphere {
@@ -87,6 +90,8 @@ pub fn chap12_scene<'a>(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene<'a>, C
             fuzz: 0.,
         }),
     }));
+
+    scene.build_bvh(&mut bvh_rng);
 
     let look_from = Vec4f::new_direction(13., 2., 3.);
     let look_at = Vec4f::new_direction(0., 0., 0.);

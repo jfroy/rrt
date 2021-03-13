@@ -1,5 +1,6 @@
 use super::hittable::*;
 use super::types::*;
+use std::cmp::Ordering;
 
 #[derive(Clone, Copy)]
 pub struct Aabb {
@@ -28,6 +29,15 @@ impl Aabb {
         }
     }
 
+    pub fn axis_cmp(&self, other: &Aabb, axis: Axis) -> Ordering {
+        let (a, b) = match axis {
+            Axis::X => (self.minimum.x, other.minimum.x),
+            Axis::Y => (self.minimum.y, other.minimum.y),
+            Axis::Z => (self.minimum.z, other.minimum.z),
+        };
+        a.partial_cmp(&b).unwrap_or(Ordering::Equal)
+    }
+
     pub fn hit(&self, r: &Ray, t_min: f32, t_max: f32) -> bool {
         let inv_d = r.direction.with_w(1.).recip();
         let t0 = (self.minimum - r.origin) * inv_d;
@@ -38,13 +48,29 @@ impl Aabb {
     }
 }
 
-pub struct Bvh<'a> {
+pub struct BvhNode<'a> {
     pub left: &'a (dyn Hittable + Sync),
     pub right: &'a (dyn Hittable + Sync),
     pub aabb: Aabb,
 }
 
-impl<'a> Hittable for Bvh<'a> {
+impl<'a> BvhNode<'a> {
+    pub fn new(
+        left: &'a (dyn Hittable + Sync),
+        right: &'a (dyn Hittable + Sync),
+    ) -> Option<BvhNode<'a>> {
+        match (left.aabb(), right.aabb()) {
+            (Some(l), Some(r)) => Some(BvhNode {
+                left,
+                right,
+                aabb: Aabb::surrounding(l, r),
+            }),
+            _ => None,
+        }
+    }
+}
+
+impl<'a> Hittable for BvhNode<'a> {
     fn hit<'scene>(&'scene self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit<'scene>> {
         if !self.aabb.hit(r, t_min, t_max) {
             return None;

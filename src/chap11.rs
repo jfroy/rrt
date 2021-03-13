@@ -1,10 +1,14 @@
 use super::camera::*;
 use super::materials::*;
+use super::rng::*;
 use super::scene::*;
 use super::sphere::*;
 use super::types::*;
 
-pub fn chap11_scene<'a>(nx: usize, ny: usize) -> (Scene<'a>, Camera) {
+pub fn chap11_scene<'a>(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene<'a>, Camera) {
+    // Clone the RNG for BVH construction to keep it independent from the scene.
+    let mut bvh_rng = rng.clone();
+
     let mut scene = Scene::new();
 
     scene.spheres.push(Sphere::from(StationarySphere {
@@ -39,6 +43,8 @@ pub fn chap11_scene<'a>(nx: usize, ny: usize) -> (Scene<'a>, Camera) {
         radius: -0.45,
         material: Box::new(Dielectric { ref_idx: 1.5 }),
     }));
+
+    scene.build_bvh(&mut bvh_rng);
 
     let look_from = Vec4f::new_direction(3., 3., 2.);
     let look_at = Vec4f::new_direction(0., 0., -1.);

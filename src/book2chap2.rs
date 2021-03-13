@@ -7,10 +7,13 @@ use super::types::*;
 use rand::distributions::Uniform;
 
 pub fn book2_chap2_scene<'a>(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene<'a>, Camera) {
-    let mut scene = Scene::new();
     // Clone the RNG for the moving sphere center1 calculations to keep the scene
     // otherwise identical to chap12_scene.
     let mut rng2 = rng.clone();
+    // Clone the RNG for BVH construction to keep it independent from the scene.
+    let mut bvh_rng = rng.clone();
+
+    let mut scene = Scene::new();
 
     scene.spheres.push(Sphere::from(StationarySphere {
         center: Vec4f::new_direction(0., -1000., 0.),
@@ -101,6 +104,8 @@ pub fn book2_chap2_scene<'a>(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene<'
             fuzz: 0.,
         }),
     }));
+
+    scene.build_bvh(&mut bvh_rng);
 
     let look_from = Vec4f::new_direction(13., 2., 3.);
     let look_at = Vec4f::new_direction(0., 0., 0.);

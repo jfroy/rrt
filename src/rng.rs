@@ -1,7 +1,7 @@
 // Provides random number generation.
 
 use super::types::*;
-use rand::distributions::Uniform;
+use rand::distributions::{Distribution, Standard, Uniform};
 pub use rand::Rng;
 pub use rand::SeedableRng;
 
@@ -52,5 +52,15 @@ impl RngVector for Vec4f {
     fn gen_uniform_random_unit(rng: &mut RttRng) -> Vec4f {
         let v = Vec4f::gen_uniform_random_in_unit_sphere(rng);
         v.normalized()
+    }
+}
+
+impl Distribution<Axis> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Axis {
+        match rng.gen_range(0..=2) {
+            0 => Axis::X,
+            1 => Axis::Y,
+            _ => Axis::Z,
+        }
     }
 }

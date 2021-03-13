@@ -24,3 +24,10 @@ pub struct ScatteredRay {
     pub r: Ray,
     pub attenuation: Vec4f,
 }
+
+#[derive(Clone, Copy)]
+pub enum Axis {
+    X,
+    Y,
+    Z,
+}
