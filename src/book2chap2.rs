@@ -6,7 +6,7 @@ use super::sphere::*;
 use super::types::*;
 use rand::distributions::Uniform;
 
-pub fn book2_chap2_scene(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene, Camera) {
+pub fn book2_chap2_scene<'a>(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene<'a>, Camera) {
     let mut scene = Scene::new();
     // Clone the RNG for the moving sphere center1 calculations to keep the scene
     // otherwise identical to chap12_scene.

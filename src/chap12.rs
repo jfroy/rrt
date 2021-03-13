@@ -5,7 +5,7 @@ use super::scene::*;
 use super::sphere::*;
 use super::types::*;
 
-pub fn chap12_scene(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene, Camera) {
+pub fn chap12_scene<'a>(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene<'a>, Camera) {
     let mut scene = Scene::new();
 
     scene.spheres.push(Sphere::from(StationarySphere {

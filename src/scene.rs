@@ -3,17 +3,21 @@ use super::materials::*;
 use super::sphere::*;
 use super::types::*;
 
-pub struct Scene {
+pub struct Scene<'a> {
     pub spheres: Vec<Sphere>,
+    pub bvh_nodes: Vec<Bvh<'a>>,
 }
 
-impl Scene {
-    pub fn new() -> Scene {
-        Scene { spheres: vec![] }
+impl<'a> Scene<'a> {
+    pub fn new() -> Scene<'a> {
+        Scene {
+            spheres: vec![],
+            bvh_nodes: vec![],
+        }
     }
 }
 
-impl Hittable for Scene {
+impl<'a> Hittable for Scene<'a> {
     fn hit<'scene>(&'scene self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit<'scene>> {
         let mut closest_t = t_max;
         let mut closest_hit: Option<Hit> = None;
