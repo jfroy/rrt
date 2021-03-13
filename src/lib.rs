@@ -10,6 +10,7 @@ pub mod threadpool;
 mod camera;
 mod materials;
 mod scene;
+mod sphere;
 mod types;
 
 use camera::*;
@@ -25,59 +26,59 @@ use vek::Lerp;
 
 // Traces a ray. This is `color` in the book.
 fn trace(r: &Ray, scene: &Scene, depth: i32, rng: &mut RttRng) -> Rgbf32 {
-  if let Some(hit) = scene.hit(r, 0.001, std::f32::MAX) {
-    if depth >= 50 {
-      return Rgbf32::black();
+    if let Some(hit) = scene.hit(r, 0.001, std::f32::MAX) {
+        if depth >= 50 {
+            return Rgbf32::black();
+        }
+        if let Some(sc) = hit.material.scatter(r, &hit, rng) {
+            return Rgbf32::from(Vec3f::from(sc.attenuation)) * trace(&sc.r, scene, depth + 1, rng);
+        }
+        return Rgbf32::black();
     }
-    if let Some(sc) = hit.material.scatter(r, &hit, rng) {
-      return Rgbf32::from(Vec3f::from(sc.attenuation)) * trace(&sc.r, scene, depth + 1, rng);
-    }
-    return Rgbf32::black();
-  }
-  const WHITE: Rgbf32 = Rgbf32::new(1., 1., 1.);
-  const SKY_BLUE: Rgbf32 = Rgbf32::new(0.5, 0.7, 1.);
-  let unit_direction = r.direction.normalized();
-  let t = 0.5 * (unit_direction.y + 1.);
-  Lerp::lerp(WHITE, SKY_BLUE, t)
+    const WHITE: Rgbf32 = Rgbf32::new(1., 1., 1.);
+    const SKY_BLUE: Rgbf32 = Rgbf32::new(0.5, 0.7, 1.);
+    let unit_direction = r.direction.normalized();
+    let t = 0.5 * (unit_direction.y + 1.);
+    Lerp::lerp(WHITE, SKY_BLUE, t)
 }
 
 pub fn tracescene(
-  nx: usize,
-  ny: usize,
-  ns: usize,
-  scene: &Scene,
-  camera: &Camera,
-  pool: &rayon::ThreadPool,
-  pdc: &AtomicUsize,
+    nx: usize,
+    ny: usize,
+    ns: usize,
+    scene: &Scene,
+    camera: &Camera,
+    pool: &rayon::ThreadPool,
+    pdc: &AtomicUsize,
 ) -> Vec<u8> {
-  const BYTES_PER_PIXEL: usize = 3;
-  let mut pixels = vec![0u8; ny * nx * BYTES_PER_PIXEL];
-  pool.install(|| {
+    const BYTES_PER_PIXEL: usize = 3;
+    let mut pixels = vec![0u8; ny * nx * BYTES_PER_PIXEL];
+    pool.install(|| {
+        pixels
+            .par_chunks_mut(BYTES_PER_PIXEL)
+            .enumerate()
+            .for_each(|(idx, chunk)| {
+                let raw = THREAD_RNG_KEY.with(|uc| uc.get());
+                let mut nn = NonNull::new(raw).unwrap();
+                let mut rng = unsafe { nn.as_mut() };
+                let x = (idx % nx) as f32;
+                let y = (ny - 1 - idx / nx) as f32;
+                let mut c = Rgbf32::black();
+                for _ in 0..ns {
+                    let ray = camera.gen_ray(
+                        (x + rng.gen::<f32>()) / nx as f32,
+                        (y + rng.gen::<f32>()) / ny as f32,
+                        &mut rng,
+                    );
+                    c += trace(&ray, scene, 0, &mut rng);
+                }
+                // The book uses a simple gamma 2.0 function, not the sRGB OETF.
+                c.apply(|e| (e / (ns as f32)).sqrt() * 255.99);
+                chunk[0] = c.r as u8;
+                chunk[1] = c.g as u8;
+                chunk[2] = c.b as u8;
+                pdc.fetch_add(1, Ordering::Relaxed);
+            });
+    });
     pixels
-      .par_chunks_mut(BYTES_PER_PIXEL)
-      .enumerate()
-      .for_each(|(idx, chunk)| {
-        let raw = THREAD_RNG_KEY.with(|uc| uc.get());
-        let mut nn = NonNull::new(raw).unwrap();
-        let mut rng = unsafe { nn.as_mut() };
-        let x = (idx % nx) as f32;
-        let y = (ny - 1 - idx / nx) as f32;
-        let mut c = Rgbf32::black();
-        for _ in 0..ns {
-          let ray = camera.gen_ray(
-            (x + rng.gen::<f32>()) / nx as f32,
-            (y + rng.gen::<f32>()) / ny as f32,
-            &mut rng,
-          );
-          c += trace(&ray, scene, 0, &mut rng);
-        }
-        // The book uses a simple gamma 2.0 function, not the sRGB OETF.
-        c.apply(|e| (e / (ns as f32)).sqrt() * 255.99);
-        chunk[0] = c.r as u8;
-        chunk[1] = c.g as u8;
-        chunk[2] = c.b as u8;
-        pdc.fetch_add(1, Ordering::Relaxed);
-      });
-  });
-  pixels
 }
