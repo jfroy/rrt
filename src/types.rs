@@ -6,6 +6,7 @@ pub type Vec3f = vec3::Vec3<f32>;
 pub type Vec4f = vec4::Vec4<f32>;
 pub type Rgbf32 = rgb::Rgb<f32>;
 
+#[derive(Clone, Copy)]
 pub struct Ray {
     pub origin: Vec4f,
     pub direction: Vec4f,
@@ -18,6 +19,7 @@ impl Ray {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct ScatteredRay {
     pub r: Ray,
     pub attenuation: Vec4f,
