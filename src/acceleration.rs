@@ -60,7 +60,7 @@ impl<'a> Hittable for Bvh<'a> {
         }
     }
 
-    fn aabb(&self, _: f32, _: f32) -> Option<Aabb> {
+    fn aabb(&self) -> Option<Aabb> {
         Some(self.aabb)
     }
 }

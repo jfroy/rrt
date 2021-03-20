@@ -30,13 +30,13 @@ impl<'a> Hittable for Scene<'a> {
         closest_hit
     }
 
-    fn aabb(&self, time0: f32, time1: f32) -> Option<Aabb> {
+    fn aabb(&self) -> Option<Aabb> {
         if self.spheres.is_empty() {
             return None;
         }
         let mut bb = Aabb::zero();
         for sphere in &self.spheres {
-            if let Some(aabb) = sphere.aabb(time0, time1) {
+            if let Some(aabb) = sphere.aabb() {
                 bb = Aabb::surrounding(bb, aabb);
             } else {
                 return None;

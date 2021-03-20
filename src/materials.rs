@@ -8,7 +8,7 @@ pub trait Material {
 
 pub trait Hittable {
     fn hit<'scene>(&'scene self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit<'scene>>;
-    fn aabb(&self, time0: f32, time1: f32) -> Option<Aabb>;
+    fn aabb(&self) -> Option<Aabb>;
 }
 
 pub struct Hit<'scene> {

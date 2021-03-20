@@ -38,13 +38,13 @@ pub fn book2_chap2_scene<'a>(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene<'
                             rng2.sample(Uniform::new_inclusive(0., 0.5)),
                             0.,
                         );
-                    Sphere {
+                    Sphere::new(
                         center0,
                         center1,
-                        time0: 0.,
-                        time1: 1.,
-                        radius: 0.2,
-                        material: Box::new(Lambertian {
+                        0.,
+                        1.,
+                        0.2,
+                        Box::new(Lambertian {
                             albedo: Vec4f::new(
                                 rng.gen::<f32>() * rng.gen::<f32>(),
                                 rng.gen::<f32>() * rng.gen::<f32>(),
@@ -52,7 +52,7 @@ pub fn book2_chap2_scene<'a>(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene<'
                                 1.,
                             ),
                         }),
-                    }
+                    )
                 } else if choose_mat < 0.95 {
                     // Metal
                     Sphere::from(StationarySphere {

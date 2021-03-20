@@ -12,6 +12,7 @@ pub struct Sphere {
     pub time1: f32,
     pub radius: f32,
     pub material: Box<dyn Material + Sync>,
+    pub aabb: Aabb,
 }
 
 pub struct StationarySphere {
@@ -20,19 +21,43 @@ pub struct StationarySphere {
     pub material: Box<dyn Material + Sync>,
 }
 
+fn sphere_aabb(center0: Vec4f, center1: Vec4f, radius: f32) -> Aabb {
+    let box0 = Aabb {
+        minimum: center0 - Vec4f::broadcast(radius).with_w(0.),
+        maximum: center0 + Vec4f::broadcast(radius).with_w(0.),
+    };
+    let box1 = Aabb {
+        minimum: center1 - Vec4f::broadcast(radius).with_w(0.),
+        maximum: center1 + Vec4f::broadcast(radius).with_w(0.),
+    };
+    Aabb::surrounding(box0, box1)
+}
+
 impl Sphere {
-    pub fn from(s: StationarySphere) -> Sphere {
+    pub fn new(
+        center0: Vec4f,
+        center1: Vec4f,
+        time0: f32,
+        time1: f32,
+        radius: f32,
+        material: Box<dyn Material + Sync>,
+    ) -> Sphere {
         Sphere {
-            center0: s.center,
-            center1: s.center,
-            time0: 0.,
-            time1: 1.,
-            radius: s.radius,
-            material: s.material,
+            center0,
+            center1,
+            time0,
+            time1,
+            radius,
+            material,
+            aabb: sphere_aabb(center0, center1, radius),
         }
     }
 
-    fn center(&self, t: f32) -> Vec4f {
+    pub fn from(s: StationarySphere) -> Sphere {
+        Sphere::new(s.center, s.center, 0., 1., s.radius, s.material)
+    }
+
+    fn center_at(&self, t: f32) -> Vec4f {
         self.center0
             + ((t - self.time0) / (self.time1 - self.time0)) * (self.center1 - self.center0)
     }
@@ -40,7 +65,7 @@ impl Sphere {
 
 impl Hittable for Sphere {
     fn hit<'scene>(&'scene self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit<'scene>> {
-        let center = self.center(r.time);
+        let center = self.center_at(r.time);
         let oc = r.origin - center;
         let a = r.direction.dot(r.direction);
         let half_b = oc.dot(r.direction);
@@ -74,15 +99,7 @@ impl Hittable for Sphere {
         })
     }
 
-    fn aabb(&self, time0: f32, time1: f32) -> Option<Aabb> {
-        let box0 = Aabb {
-            minimum: self.center(time0) - Vec4f::broadcast(self.radius).with_w(0.),
-            maximum: self.center(time0) + Vec4f::broadcast(self.radius).with_w(0.),
-        };
-        let box1 = Aabb {
-            minimum: self.center(time1) - Vec4f::broadcast(self.radius).with_w(0.),
-            maximum: self.center(time1) + Vec4f::broadcast(self.radius).with_w(0.),
-        };
-        Some(Aabb::surrounding(box0, box1))
+    fn aabb(&self) -> Option<Aabb> {
+        Some(self.aabb)
     }
 }
