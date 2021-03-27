@@ -16,11 +16,12 @@ vek = "0.14"
 
 [profile.release]
 debug = true
-lto = true
+lto = "fat"
 opt-level = 3
+panic = "abort"
 
 [profile.bench]
-lto = true
+lto = "fat"
 opt-level = 3
 
 [dev-dependencies]
