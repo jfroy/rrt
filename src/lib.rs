@@ -1,4 +1,5 @@
 #![allow(clippy::just_underscores_and_digits)]
+#![feature(platform_intrinsics)]
 
 pub mod acceleration;
 pub mod book2chap2;
@@ -11,6 +12,7 @@ mod camera;
 mod hittable;
 mod materials;
 mod scene;
+mod simd_llvm;
 mod sphere;
 mod types;
 
