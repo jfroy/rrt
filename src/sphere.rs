@@ -83,7 +83,7 @@ impl Hittable for Sphere {
                 return None;
             }
         }
-        let p = r.point_at_parameter(root);
+        let p = r.point_at(root);
         let outward_normal = (p - center) / self.radius;
         let front_face = r.direction.dot(outward_normal) < 0.;
         let normal = if front_face {

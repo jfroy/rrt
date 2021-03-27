@@ -14,7 +14,7 @@ pub struct Ray {
 }
 
 impl Ray {
-    pub fn point_at_parameter(&self, t: f32) -> Vec4f {
+    pub fn point_at(&self, t: f32) -> Vec4f {
         self.origin + (t * self.direction)
     }
 }
