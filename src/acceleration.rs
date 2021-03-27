@@ -1,4 +1,4 @@
-use super::materials::*;
+use super::hittable::*;
 use super::types::*;
 
 #[derive(Clone, Copy)]

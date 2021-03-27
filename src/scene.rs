@@ -1,5 +1,5 @@
 use super::acceleration::*;
-use super::materials::*;
+use super::hittable::*;
 use super::sphere::*;
 use super::types::*;
 

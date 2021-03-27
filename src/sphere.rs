@@ -1,6 +1,7 @@
 #![allow(clippy::suspicious_operation_groupings)]
 
 use super::acceleration::*;
+use super::hittable::*;
 use super::materials::*;
 use super::types::*;
 use std::borrow::Borrow;

@@ -8,13 +8,14 @@ pub mod rng;
 pub mod threadpool;
 
 mod camera;
+mod hittable;
 mod materials;
 mod scene;
 mod sphere;
 mod types;
 
 use camera::*;
-use materials::*;
+use hittable::*;
 use rayon::prelude::*;
 use rng::*;
 use scene::*;

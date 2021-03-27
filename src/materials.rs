@@ -1,22 +1,9 @@
-use super::acceleration::*;
+use super::hittable::*;
 use super::rng::*;
 use super::types::*;
 
 pub trait Material {
     fn scatter(&self, r: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<ScatteredRay>;
-}
-
-pub trait Hittable {
-    fn hit<'scene>(&'scene self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit<'scene>>;
-    fn aabb(&self) -> Option<Aabb>;
-}
-
-pub struct Hit<'scene> {
-    pub p: Vec4f,
-    pub normal: Vec4f,
-    pub t: f32,
-    pub material: &'scene (dyn Material + Sync),
-    pub front_face: bool,
 }
 
 // Lambertian
