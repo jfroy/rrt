@@ -1,4 +1,5 @@
 #![allow(clippy::just_underscores_and_digits)]
+#![feature(const_fn_floating_point_arithmetic)]
 #![feature(platform_intrinsics)]
 
 pub mod acceleration;
@@ -9,6 +10,7 @@ pub mod rng;
 pub mod threadpool;
 
 mod camera;
+mod fp;
 mod hittable;
 mod materials;
 mod scene;
