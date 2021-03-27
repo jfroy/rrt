@@ -5,6 +5,7 @@ authors = ["Jean-Francois Roy <jf@devklog.net>"]
 edition = "2018"
 
 [dependencies]
+arrayvec = "0.6"
 clap = "3.0.0-beta.2"
 image = "0.23"
 palette = "0.5"
@@ -12,7 +13,7 @@ pbr = "1.0"
 rand = { version = "0.8", features = ["small_rng"] }
 rand_xoshiro = "0.6"
 rayon = "1.5"
-vek = "0.14"
+vek = "0.15"
 
 [profile.release]
 debug = true
