@@ -853,6 +853,7 @@ dependencies = [
  "clap 3.0.0-beta.2",
  "criterion",
  "image",
+ "itertools 0.10.0",
  "palette",
  "pbr",
  "rand 0.8.3",

@@ -1,49 +1,36 @@
 use super::acceleration::*;
 use super::hittable::*;
-use super::rng::*;
 use super::sphere::*;
-use super::types::*;
 
-pub struct Scene<'a> {
+pub struct Scene {
     pub spheres: Vec<Sphere>,
-    pub bvh: Bvh<'a>,
+    pub bvh: Bvh,
 }
 
-impl<'a> Scene<'a> {
-    pub fn new() -> Scene<'a> {
+fn as_object_refs<H>(objects: &[H]) -> Vec<&(dyn Hittable + Sync)>
+where
+    H: Hittable + Sync,
+{
+    objects
+        .iter()
+        .map(|e| e as &(dyn Hittable + Sync))
+        .collect()
+}
+
+impl Scene {
+    pub fn new() -> Scene {
         Scene {
             spheres: vec![],
             bvh: Bvh::new(),
         }
     }
-    pub fn build_bvh(&self, _: &mut RttRng) {}
-}
 
-impl<'a> Hittable for Scene<'a> {
-    fn hit<'scene>(&'scene self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit<'scene>> {
-        let mut closest_t = t_max;
-        let mut closest_hit: Option<Hit> = None;
-        for sphere in &self.spheres {
-            if let Some(hit) = sphere.hit(r, t_min, closest_t) {
-                closest_t = hit.t;
-                closest_hit = Some(hit);
-            }
-        }
-        closest_hit
+    pub fn objects(&self) -> Vec<&(dyn Hittable + Sync)> {
+        as_object_refs(&self.spheres)
     }
 
-    fn aabb(&self) -> Option<Aabb> {
-        if self.spheres.is_empty() {
-            return None;
-        }
-        let mut bb = Aabb::zero();
-        for sphere in &self.spheres {
-            if let Some(aabb) = sphere.aabb() {
-                bb = Aabb::surrounding(bb, aabb);
-            } else {
-                return None;
-            }
-        }
-        Some(bb)
+    pub fn build_bvh(&mut self, method: BvhPartitionMethod) {
+        let objects = as_object_refs(&self.spheres);
+        self.bvh.build(&objects[..], method);
     }
 }

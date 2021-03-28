@@ -7,13 +7,13 @@ use super::types::*;
 use std::borrow::Borrow;
 
 pub struct Sphere {
-    pub center0: Vec4f,
-    pub center1: Vec4f,
-    pub time0: f32,
-    pub time1: f32,
-    pub radius: f32,
-    pub material: Box<dyn Material + Sync>,
-    pub aabb: Aabb,
+    center0: Vec4f,
+    center1: Vec4f,
+    time0: f32,
+    time1: f32,
+    radius: f32,
+    material: Box<dyn Material + Sync>,
+    aabb: Aabb,
 }
 
 pub struct StationarySphere {
@@ -31,7 +31,7 @@ fn sphere_aabb(center0: Vec4f, center1: Vec4f, radius: f32) -> Aabb {
         minimum: center1 - Vec4f::broadcast(radius).with_w(0.),
         maximum: center1 + Vec4f::broadcast(radius).with_w(0.),
     };
-    Aabb::surrounding(box0, box1)
+    box0.union(box1)
 }
 
 impl Sphere {
@@ -100,7 +100,7 @@ impl Hittable for Sphere {
         })
     }
 
-    fn aabb(&self) -> Option<Aabb> {
-        Some(self.aabb)
+    fn aabb(&self) -> Aabb {
+        self.aabb
     }
 }

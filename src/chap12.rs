@@ -4,11 +4,9 @@ use super::rng::*;
 use super::scene::*;
 use super::sphere::*;
 use super::types::*;
+use crate::acceleration::BvhPartitionMethod;
 
-pub fn chap12_scene<'a>(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene<'a>, Camera) {
-    // Clone the RNG for BVH construction to keep it independent from the scene.
-    let mut bvh_rng = rng.clone();
-
+pub fn chap12_scene<'a>(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene, Camera) {
     let mut scene = Scene::new();
 
     scene.spheres.push(Sphere::from(StationarySphere {
@@ -91,7 +89,7 @@ pub fn chap12_scene<'a>(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene<'a>, C
         }),
     }));
 
-    scene.build_bvh(&mut bvh_rng);
+    scene.build_bvh(BvhPartitionMethod::Middle);
 
     let look_from = Vec4f::new_direction(13., 2., 3.);
     let look_at = Vec4f::new_direction(0., 0., 0.);

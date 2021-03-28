@@ -2,13 +2,13 @@
 #![feature(const_fn_floating_point_arithmetic)]
 #![feature(platform_intrinsics)]
 
-pub mod acceleration;
 pub mod book2chap2;
 pub mod chap11;
 pub mod chap12;
 pub mod rng;
 pub mod threadpool;
 
+mod acceleration;
 mod camera;
 mod fp;
 mod hittable;
@@ -18,6 +18,7 @@ mod simd_llvm;
 mod sphere;
 mod types;
 
+use acceleration::*;
 use camera::*;
 use hittable::*;
 use rayon::prelude::*;
@@ -30,13 +31,20 @@ use types::*;
 use vek::Lerp;
 
 // Traces a ray. This is `color` in the book.
-fn trace(r: &Ray, scene: &Scene, depth: i32, rng: &mut RttRng) -> Rgbf32 {
-    if let Some(hit) = scene.hit(r, 0.001, std::f32::MAX) {
+fn trace(
+    bvh: &Bvh,
+    objects: &[&(dyn Hittable + Sync)],
+    r: &Ray,
+    depth: i32,
+    rng: &mut RttRng,
+) -> Rgbf32 {
+    if let Some(hit) = bvh.hit(objects, r, 0.001, std::f32::MAX) {
         if depth >= 50 {
             return Rgbf32::black();
         }
         if let Some(sc) = hit.material.scatter(r, &hit, rng) {
-            return Rgbf32::from(Vec3f::from(sc.attenuation)) * trace(&sc.r, scene, depth + 1, rng);
+            return Rgbf32::from(Vec3f::from(sc.attenuation))
+                * trace(bvh, objects, &sc.r, depth + 1, rng);
         }
         return Rgbf32::black();
     }
@@ -58,6 +66,7 @@ pub fn tracescene(
 ) -> Vec<u8> {
     const BYTES_PER_PIXEL: usize = 3;
     let mut pixels = vec![0u8; ny * nx * BYTES_PER_PIXEL];
+    let objects = scene.objects();
     pool.install(|| {
         pixels
             .par_chunks_mut(BYTES_PER_PIXEL)
@@ -75,7 +84,7 @@ pub fn tracescene(
                         (y + rng.gen::<f32>()) / ny as f32,
                         &mut rng,
                     );
-                    c += trace(&ray, scene, 0, &mut rng);
+                    c += trace(&scene.bvh, &objects, &ray, 0, &mut rng);
                 }
                 // The book uses a simple gamma 2.0 function, not the sRGB OETF.
                 c.apply(|e| (e / (ns as f32)).sqrt() * 255.99);

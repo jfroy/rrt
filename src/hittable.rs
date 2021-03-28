@@ -4,7 +4,7 @@ use super::types::*;
 
 pub trait Hittable {
     fn hit<'scene>(&'scene self, r: &Ray, t_min: f32, t_max: f32) -> Option<Hit<'scene>>;
-    fn aabb(&self) -> Option<Aabb>;
+    fn aabb(&self) -> Aabb;
 }
 
 pub struct Hit<'scene> {
@@ -22,7 +22,7 @@ impl Hittable for Unhittable {
     fn hit<'scene>(&'scene self, _: &Ray, _: f32, _: f32) -> Option<Hit<'scene>> {
         None
     }
-    fn aabb(&self) -> Option<Aabb> {
-        Some(Aabb::zero())
+    fn aabb(&self) -> Aabb {
+        Aabb::default()
     }
 }
