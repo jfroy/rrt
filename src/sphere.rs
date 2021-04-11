@@ -24,12 +24,12 @@ pub struct StationarySphere {
 
 fn sphere_aabb(center0: Vec4f, center1: Vec4f, radius: f32) -> Aabb {
     let box0 = Aabb {
-        minimum: center0 - Vec4f::broadcast(radius).with_w(0.),
-        maximum: center0 + Vec4f::broadcast(radius).with_w(0.),
+        minimum: center0 - Vec4f::broadcast(radius),
+        maximum: center0 + Vec4f::broadcast(radius),
     };
     let box1 = Aabb {
-        minimum: center1 - Vec4f::broadcast(radius).with_w(0.),
-        maximum: center1 + Vec4f::broadcast(radius).with_w(0.),
+        minimum: center1 - Vec4f::broadcast(radius),
+        maximum: center1 + Vec4f::broadcast(radius),
     };
     box0.union(box1)
 }

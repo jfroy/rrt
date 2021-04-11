@@ -35,16 +35,18 @@ impl Camera {
         let w = (ci.look_from - ci.look_at).normalized();
         let u = Vec3f::from(ci.up).cross(Vec3f::from(w)).normalized();
         let v = Vec3f::from(w).cross(u);
+        let u: Vec4f = u.into();
+        let v: Vec4f = v.into();
         Camera {
             lower_left_corner: ci.look_from
                 - (half_width * ci.focus_dist * u)
                 - (half_height * ci.focus_dist * v)
                 - ci.focus_dist * w,
-            horizontal: Vec4f::from_direction(2. * half_width * ci.focus_dist * u),
-            vertical: Vec4f::from_direction(2. * half_height * ci.focus_dist * v),
+            horizontal: 2. * half_width * ci.focus_dist * u,
+            vertical: 2. * half_height * ci.focus_dist * v,
             origin: ci.look_from,
-            u: Vec4f::from_direction(u),
-            v: Vec4f::from_direction(v),
+            u,
+            v,
             w,
             lens_radius: ci.aperture / 2.,
             time_dist: Uniform::new_inclusive(ci.time0, ci.time1),

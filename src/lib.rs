@@ -14,7 +14,6 @@ mod fp;
 mod hittable;
 mod materials;
 mod scene;
-mod simd_llvm;
 mod sphere;
 mod types;
 
@@ -28,7 +27,25 @@ use std::ptr::NonNull;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use threadpool::*;
 use types::*;
-use vek::Lerp;
+use ultraviolet::interp::Lerp;
+
+#[allow(dead_code)]
+fn closest_hit<'scene>(
+    objects: &[&'scene (dyn hittable::Hittable + Sync + 'scene)],
+    r: &Ray,
+    t_min: f32,
+    t_max: f32,
+) -> Option<Hit<'scene>> {
+    let mut hit: Option<Hit<'scene>> = None;
+    let mut t_max = t_max;
+    for o in objects {
+        if let Some(h) = o.hit(r, t_min, t_max) {
+            t_max = h.t;
+            hit = Some(h);
+        }
+    }
+    hit
+}
 
 // Traces a ray. This is `color` in the book.
 fn trace(
@@ -37,22 +54,21 @@ fn trace(
     r: &Ray,
     depth: i32,
     rng: &mut RttRng,
-) -> Rgbf32 {
+) -> Vec4f {
     if let Some(hit) = bvh.hit(objects, r, 0.001, std::f32::MAX) {
         if depth >= 50 {
-            return Rgbf32::black();
+            return Vec4f::zero();
         }
         if let Some(sc) = hit.material.scatter(r, &hit, rng) {
-            return Rgbf32::from(Vec3f::from(sc.attenuation))
-                * trace(bvh, objects, &sc.r, depth + 1, rng);
+            return sc.attenuation * trace(bvh, objects, &sc.r, depth + 1, rng);
         }
-        return Rgbf32::black();
+        return Vec4f::zero();
     }
-    const WHITE: Rgbf32 = Rgbf32::new(1., 1., 1.);
-    const SKY_BLUE: Rgbf32 = Rgbf32::new(0.5, 0.7, 1.);
+    let white: Vec4f = Vec4f::one();
+    let sky_blue: Vec4f = Vec4f::new(0.5, 0.7, 1., 0.);
     let unit_direction = r.direction.normalized();
     let t = 0.5 * (unit_direction.y + 1.);
-    Lerp::lerp(WHITE, SKY_BLUE, t)
+    white.lerp(sky_blue, t)
 }
 
 pub fn tracescene(
@@ -77,7 +93,7 @@ pub fn tracescene(
                 let mut rng = unsafe { nn.as_mut() };
                 let x = (idx % nx) as f32;
                 let y = (ny - 1 - idx / nx) as f32;
-                let mut c = Rgbf32::black();
+                let mut c = Vec4f::zero();
                 for _ in 0..ns {
                     let ray = camera.gen_ray(
                         (x + rng.gen::<f32>()) / nx as f32,
@@ -88,9 +104,9 @@ pub fn tracescene(
                 }
                 // The book uses a simple gamma 2.0 function, not the sRGB OETF.
                 c.apply(|e| (e / (ns as f32)).sqrt() * 255.99);
-                chunk[0] = c.r as u8;
-                chunk[1] = c.g as u8;
-                chunk[2] = c.b as u8;
+                chunk[0] = c.x as u8;
+                chunk[1] = c.y as u8;
+                chunk[2] = c.z as u8;
                 pdc.fetch_add(1, Ordering::Relaxed);
             });
     });

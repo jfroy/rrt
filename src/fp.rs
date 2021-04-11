@@ -1,7 +1,7 @@
 //! Provides floating point utilities.
 
 /// MACHINE_EPSILON is the numerical analysis definition of machine epsilon,
-/// where it is nterchangeble with unit roundoff. In C++ and Rust, the
+/// where it is interchangeble with unit roundoff. In C++ and Rust, the
 /// built-in EPSILON constant is defined as the difference between 1 and
 /// the next larger floating point number, i.e. twice the unit roundoff
 /// or the traditional academic definition of machine epsilon. This constant

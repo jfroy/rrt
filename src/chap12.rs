@@ -10,7 +10,7 @@ pub fn chap12_scene<'a>(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene, Camer
     let mut scene = Scene::new();
 
     scene.spheres.push(Sphere::from(StationarySphere {
-        center: Vec4f::new_direction(0., -1000., 0.),
+        center: Vec4f::new(0., -1000., 0., 0.),
         radius: 1000.,
         material: Box::new(Lambertian {
             albedo: Vec4f::new(0.5, 0.5, 0.5, 1.),
@@ -19,12 +19,13 @@ pub fn chap12_scene<'a>(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene, Camer
 
     for a in -11..11 {
         for b in -11..11 {
-            let center = Vec4f::new_direction(
+            let center = Vec4f::new(
                 a as f32 + 0.9 * rng.gen::<f32>(),
                 0.2,
                 b as f32 + 0.9 * rng.gen::<f32>(),
+                0.,
             );
-            if (center - Vec4f::new_direction(4., 0.2, 0.)).magnitude() > 0.9 {
+            if (center - Vec4f::new(4., 0.2, 0., 0.)).mag() > 0.9 {
                 let choose_mat = rng.gen::<f32>();
                 let sphere = if choose_mat < 0.8 {
                     // Diffuse
@@ -69,31 +70,31 @@ pub fn chap12_scene<'a>(nx: usize, ny: usize, rng: &mut RttRng) -> (Scene, Camer
     }
 
     scene.spheres.push(Sphere::from(StationarySphere {
-        center: Vec4f::new_direction(0., 1., 0.),
+        center: Vec4f::new(0., 1., 0., 0.),
         radius: 1.,
         material: Box::new(Dielectric { ref_idx: 1.5 }),
     }));
     scene.spheres.push(Sphere::from(StationarySphere {
-        center: Vec4f::new_direction(-4., 1., 0.),
+        center: Vec4f::new(-4., 1., 0., 0.),
         radius: 1.,
         material: Box::new(Lambertian {
-            albedo: Vec4f::new_direction(0.4, 0.2, 0.1),
+            albedo: Vec4f::new(0.4, 0.2, 0.1, 1.),
         }),
     }));
     scene.spheres.push(Sphere::from(StationarySphere {
-        center: Vec4f::new_direction(4., 1., 0.),
+        center: Vec4f::new(4., 1., 0., 0.),
         radius: 1.,
         material: Box::new(Metal {
-            albedo: Vec4f::new_direction(0.7, 0.6, 0.5),
+            albedo: Vec4f::new(0.7, 0.6, 0.5, 1.),
             fuzz: 0.,
         }),
     }));
 
     scene.build_bvh(BvhPartitionMethod::Middle);
 
-    let look_from = Vec4f::new_direction(13., 2., 3.);
-    let look_at = Vec4f::new_direction(0., 0., 0.);
-    let up = Vec4f::new_direction(0., 1., 0.);
+    let look_from = Vec4f::new(13., 2., 3., 0.);
+    let look_at = Vec4f::new(0., 0., 0., 0.);
+    let up = Vec4f::new(0., 1., 0., 0.);
     let fov = 20.;
     let aspect = nx as f32 / ny as f32;
     let aperture = 0.1;

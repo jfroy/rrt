@@ -1,10 +1,10 @@
 use crate::fp::gamma_eb;
 use crate::hittable::*;
-use crate::simd_llvm;
 use crate::types::*;
 use arrayvec::ArrayVec;
 use itertools;
 use std::cmp::Ordering;
+use wide::{f32x4, CmpLt};
 
 #[derive(Clone, Copy)]
 pub struct Aabb {
@@ -14,14 +14,14 @@ pub struct Aabb {
 
 impl Aabb {
     pub fn union(self: Aabb, b: Aabb) -> Aabb {
-        let minimum = Vec4f::partial_min(self.minimum, b.minimum);
-        let maximum = Vec4f::partial_max(self.maximum, b.maximum);
+        let minimum = self.minimum.min_by_component(b.minimum);
+        let maximum = self.maximum.max_by_component(b.maximum);
         Aabb { minimum, maximum }
     }
 
     pub fn union_p(self: Aabb, p: Vec4f) -> Aabb {
-        let minimum = Vec4f::partial_min(self.minimum, p);
-        let maximum = Vec4f::partial_max(self.maximum, p);
+        let minimum = self.minimum.min_by_component(p);
+        let maximum = self.maximum.max_by_component(p);
         Aabb { minimum, maximum }
     }
 
@@ -57,17 +57,29 @@ impl Aabb {
     ///
     /// [pbrt]: http://www.pbr-book.org/3ed-2018/Shapes/Basic_Shape_Interface.html#RayndashBoundsIntersections
     /// [conservative intersections]: http://www.pbr-book.org/3ed-2018/Shapes/Managing_Rounding_Error.html#ConservativeRayndashBoundsIntersections
-    pub fn intersect(&self, r: &Ray, inv_d: Vec4f, inv_dir_neg: Vec4i8, t0: f32, t1: f32) -> bool {
-        let min: Vec4f;
-        let max: Vec4f;
-        unsafe {
-            min = simd_llvm::simd_select(inv_dir_neg, self.maximum, self.minimum);
-            max = simd_llvm::simd_select(inv_dir_neg, self.minimum, self.maximum);
-        }
-        let t_near = (min - r.origin) * inv_d;
-        let t_far = (max - r.origin) * inv_d * (1. + 2. * gamma_eb(3));
-        let t0 = Vec4f::reduce_partial_max(t_near.with_w(t0));
-        let t1 = Vec4f::reduce_partial_min(t_far.with_w(t1));
+    pub fn intersect(
+        &self,
+        r: &Ray,
+        inv_d: f32x4,
+        inv_dir_neg_mask: f32x4,
+        t0: f32,
+        t1: f32,
+    ) -> bool {
+        let origin = f32x4::from(*r.origin.as_array());
+        let min = inv_dir_neg_mask.blend(
+            f32x4::from(*self.maximum.as_array()),
+            f32x4::from(*self.minimum.as_array()),
+        );
+        let max = inv_dir_neg_mask.blend(
+            f32x4::from(*self.minimum.as_array()),
+            f32x4::from(*self.maximum.as_array()),
+        );
+        let t_near = (min - origin) * inv_d;
+        let t_far = (max - origin) * inv_d * (1. + 2. * gamma_eb(3));
+        let t_near: [f32; 4] = t_near.into();
+        let t_far: [f32; 4] = t_far.into();
+        let t0 = t_near[0].max(t_near[1]).max(t_near[2]).max(t0);
+        let t1 = t_far[0].min(t_far[1]).min(t_far[2]).min(t1);
         t0 <= t1
     }
 }
@@ -213,8 +225,10 @@ impl Bvh {
         t_min: f32,
         t_max: f32,
     ) -> Option<Hit<'scene>> {
-        let inv_dir = r.direction.with_w(1.).recip();
-        let inv_dir_neg: Vec4i8 = inv_dir.partial_cmplt(&Vec4f::zero()).as_();
+        let inv_dir = r.inv_direction();
+        let inv_dir_f32x4 = f32x4::from(*inv_dir.as_array());
+        let inv_dir_neg_mask = inv_dir_f32x4.cmp_lt(wide::f32x4::ZERO);
+        let inv_dir_neg_bitmask = inv_dir_neg_mask.move_mask();
         let mut index_stack = ArrayVec::<_, 64>::new();
         index_stack.push(0);
         let mut hit: Option<Hit<'scene>> = None;
@@ -233,10 +247,10 @@ impl Bvh {
                     left_i,
                     right_i,
                 } => {
-                    if !aabb.intersect(r, inv_dir, inv_dir_neg, t_min, t_max) {
+                    if !aabb.intersect(r, inv_dir_f32x4, inv_dir_neg_mask, t_min, t_max) {
                         continue;
                     }
-                    if inv_dir_neg[*axis as usize] != 0 {
+                    if inv_dir_neg_bitmask & 1 << (*axis as usize) != 0 {
                         if let Some(i) = *left_i {
                             index_stack.push(i);
                         }

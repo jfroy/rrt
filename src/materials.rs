@@ -12,13 +12,17 @@ pub struct Lambertian {
     pub albedo: Vec4f,
 }
 
+fn near_zero(v: Vec4f) -> bool {
+    v.x.abs() < 1e-8 && v.y.abs() < 1e-8 && v.z.abs() < 1e-8 && v.w.abs() < 1e-8
+}
+
 impl Material for Lambertian {
     fn scatter(&self, r: &Ray, hit: &Hit, rng: &mut RttRng) -> Option<ScatteredRay> {
         let direction = hit.normal + Vec4f::gen_uniform_random_unit(rng);
         Some(ScatteredRay {
             r: Ray {
                 origin: hit.p,
-                direction: if direction.is_approx_zero() {
+                direction: if near_zero(direction) {
                     hit.normal
                 } else {
                     direction

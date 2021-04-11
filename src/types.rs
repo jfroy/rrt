@@ -1,13 +1,10 @@
 // Provides basic types.
 #![allow(dead_code)]
 
-use vek::vec::repr_simd::*;
+use ultraviolet;
 
-pub type Vec3f = vec3::Vec3<f32>;
-pub type Vec4b = vec4::Vec4<bool>;
-pub type Vec4i8 = vec4::Vec4<i8>;
-pub type Vec4f = vec4::Vec4<f32>;
-pub type Rgbf32 = rgb::Rgb<f32>;
+pub type Vec3f = ultraviolet::Vec3;
+pub type Vec4f = ultraviolet::Vec4;
 
 #[derive(Clone, Copy)]
 pub struct Ray {
@@ -22,7 +19,7 @@ impl Ray {
     }
 
     pub fn inv_direction(&self) -> Vec4f {
-        self.direction.recip().with_w(0.)
+        Vec4f::one() / self.direction
     }
 }
 
