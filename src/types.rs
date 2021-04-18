@@ -1,10 +1,10 @@
 // Provides basic types.
 #![allow(dead_code)]
 
-use ultraviolet;
+use ultraviolet as uv;
 
-pub type Vec3f = ultraviolet::Vec3;
-pub type Vec4f = ultraviolet::Vec4;
+pub type Vec3f = uv::Vec3;
+pub type Vec4f = uv::Vec4;
 
 #[derive(Clone, Copy)]
 pub struct Ray {
@@ -27,6 +27,29 @@ impl Ray {
 pub struct ScatteredRay {
     pub r: Ray,
     pub attenuation: Vec4f,
+}
+
+#[derive(Clone, Copy)]
+pub struct Rayx8 {
+    pub origin: uv::Vec4x8,
+    pub direction: uv::Vec4x8,
+    pub time: uv::f32x8,
+}
+
+impl Rayx8 {
+    pub fn point_at(&self, t: uv::f32x8) -> uv::Vec4x8 {
+        self.origin + (t * self.direction)
+    }
+
+    pub fn inv_direction(&self) -> uv::Vec4x8 {
+        uv::Vec4x8::one() / self.direction
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct ScatteredRayx8 {
+    pub r: Rayx8,
+    pub attenuation: uv::Vec4x8,
 }
 
 #[derive(Clone, Copy)]
