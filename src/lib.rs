@@ -71,6 +71,30 @@ fn trace(
     white.lerp(sky_blue, t)
 }
 
+// Traces a ray bundle.
+fn tracex8(
+    bvh: &Bvh,
+    objects: &[&(dyn Hittable + Sync)],
+    r: &Rayx8,
+    depth: i32,
+    rng: &mut RttRng,
+) -> Vec4f {
+    if let Some(hit) = bvh.hit(objects, r, 0.001, std::f32::MAX) {
+        if depth >= 50 {
+            return Vec4f::zero();
+        }
+        if let Some(sc) = hit.material.scatter(r, &hit, rng) {
+            return sc.attenuation * trace(bvh, objects, &sc.r, depth + 1, rng);
+        }
+        return Vec4f::zero();
+    }
+    let white: Vec4f = Vec4f::one();
+    let sky_blue: Vec4f = Vec4f::new(0.5, 0.7, 1., 0.);
+    let unit_direction = r.direction.normalized();
+    let t = 0.5 * (unit_direction.y + 1.);
+    white.lerp(sky_blue, t)
+}
+
 pub fn tracescene(
     nx: usize,
     ny: usize,

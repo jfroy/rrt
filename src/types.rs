@@ -58,3 +58,5 @@ pub enum Axis {
     Y,
     Z,
 }
+
+pub type Axisx8 = [Axis; 8];

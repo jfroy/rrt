@@ -151,7 +151,6 @@ impl From<[&Sphere; 8]> for Spheresx8 {
         let time0: uv::f32x8 = pack_spheres_x8!(spheres, time0);
         let time1: uv::f32x8 = pack_spheres_x8!(spheres, time1);
         let radius: uv::f32x8 = pack_spheres_x8!(spheres, radius);
-
         Spheresx8 {
             center0,
             center1,
