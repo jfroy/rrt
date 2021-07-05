@@ -5,7 +5,7 @@ use arrayvec::ArrayVec;
 use itertools;
 use std::cmp::Ordering;
 use ultraviolet as uv;
-use wide::{f32x4, u32x8, CmpGt, CmpLt};
+use wide::{f32x4, CmpGt, CmpLe, CmpLt};
 
 #[derive(Clone, Copy)]
 pub struct Aabb {
@@ -142,11 +142,11 @@ impl Aabbx8 {
         ax8
     }
 
-    pub fn axis_cmp(self, other: Aabb, axis: Axis) -> Ordering {
-        let a = self.minimum[axis as usize];
-        let b = other.minimum[axis as usize];
-        a.partial_cmp(&b).unwrap_or(Ordering::Equal)
-    }
+    // pub fn axis_cmp(self, other: Aabb, axis: Axis) -> Ordering {
+    //     let a = self.minimum[axis as usize];
+    //     let b = other.minimum[axis as usize];
+    //     a.partial_cmp(&b).unwrap_or(Ordering::Equal)
+    // }
 
     /// Intersect returns true if a ray conservatively intersects the AABB.
     ///
@@ -155,30 +155,21 @@ impl Aabbx8 {
     ///
     /// [pbrt]: http://www.pbr-book.org/3ed-2018/Shapes/Basic_Shape_Interface.html#RayndashBoundsIntersections
     /// [conservative intersections]: http://www.pbr-book.org/3ed-2018/Shapes/Managing_Rounding_Error.html#ConservativeRayndashBoundsIntersections
-    pub fn intersect(
+    pub fn intersectx8(
         &self,
         r: &Rayx8,
         inv_d: uv::Vec4x8,
-        inv_dir_neg_mask: uv::Vec4x8,
-        t0: f32,
-        t1: f32,
-    ) -> bool {
-        let origin = f32x4::from(*r.origin.as_array());
-        let min = inv_dir_neg_mask.blend(
-            f32x4::from(*self.maximum.as_array()),
-            f32x4::from(*self.minimum.as_array()),
-        );
-        let max = inv_dir_neg_mask.blend(
-            f32x4::from(*self.minimum.as_array()),
-            f32x4::from(*self.maximum.as_array()),
-        );
-        let t_near = (min - origin) * inv_d;
-        let t_far = (max - origin) * inv_d * (1. + 2. * gamma_eb(3));
-        let t_near: [f32; 4] = t_near.into();
-        let t_far: [f32; 4] = t_far.into();
-        let t0 = t_near[0].max(t_near[1]).max(t_near[2]).max(t0);
-        let t1 = t_far[0].min(t_far[1]).min(t_far[2]).min(t1);
-        t0 <= t1
+        inv_dir_neg_mask: uv::f32x8,
+        t0: uv::f32x8,
+        t1: uv::f32x8,
+    ) -> u8 {
+        let min = uv::Vec4x8::blend(inv_dir_neg_mask, self.maximum, self.minimum);
+        let max = uv::Vec4x8::blend(inv_dir_neg_mask, self.minimum, self.maximum);
+        let t_near = (min - r.origin) * inv_d;
+        let t_far = (max - r.origin) * inv_d * uv::f32x8::from(1. + 2. * gamma_eb(3));
+        let t0 = t_near.component_max().max(t0);
+        let t1 = t_far.component_min().min(t1);
+        t0.cmp_le(t1).move_mask() as u8
     }
 }
 
@@ -325,7 +316,7 @@ impl Bvh {
     ) -> Option<Hit<'scene>> {
         let inv_dir = r.inv_direction();
         let inv_dir_f32x4 = f32x4::from(*inv_dir.as_array());
-        let inv_dir_neg_mask = inv_dir_f32x4.cmp_lt(wide::f32x4::ZERO);
+        let inv_dir_neg_mask = inv_dir_f32x4.cmp_lt(f32x4::ZERO);
         let inv_dir_neg_bitmask = inv_dir_neg_mask.move_mask();
         let mut index_stack = ArrayVec::<_, 64>::new();
         index_stack.push(0);
@@ -378,49 +369,7 @@ impl Bvh {
         t_min: f32,
         t_max: f32,
     ) -> Hitx8<'scene> {
-        let inv_dir = r.inv_direction();
-        let inv_dir_neg_mask = inv_dir.cmp_lt(uv::Vec4x8::zero());
-        let inv_dir_neg_bitmask = inv_dir_neg_mask.move_mask();
-        let mut index_stack = ArrayVec::<_, 64>::new();
-        index_stack.push(u32x8::splat(0));
-        let mut hit: Hitx8::default();
-        let mut t_max = t_max;
-        while let Some(i) = index_stack.pop() {
-            match &self.nodes[i] {
-                BvhNode::Leaf { obj_i } => {
-                    if let Some(h) = objects[*obj_i].hit(r, t_min, t_max) {
-                        t_max = h.t;
-                        hit = Some(h);
-                    }
-                }
-                BvhNode::Inner {
-                    aabb,
-                    axis,
-                    left_i,
-                    right_i,
-                } => {
-                    if !aabb.intersect(r, inv_dir_f32x4, inv_dir_neg_mask, t_min, t_max) {
-                        continue;
-                    }
-                    if inv_dir_neg_bitmask & 1 << (*axis as usize) != 0 {
-                        if let Some(i) = *left_i {
-                            index_stack.push(i);
-                        }
-                        if let Some(i) = *right_i {
-                            index_stack.push(i);
-                        }
-                    } else {
-                        if let Some(i) = *right_i {
-                            index_stack.push(i);
-                        }
-                        if let Some(i) = *left_i {
-                            index_stack.push(i);
-                        }
-                    }
-                }
-            }
-        }
-        hit
+        Hitx8::default()
     }
 }
 
