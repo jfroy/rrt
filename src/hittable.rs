@@ -15,14 +15,15 @@ pub struct Hit<'scene> {
     pub material: &'scene (dyn Material + Sync),
     pub front_face: bool,
 }
+
 #[derive(Default)]
 pub struct Hitx8<'scene> {
     pub p: uv::Vec4x8,
     pub normal: uv::Vec4x8,
     pub t: uv::f32x8,
     pub material: [Option<&'scene (dyn Material + Sync)>; 8],
-    pub front_face_bmask: i32,
-    pub valid_bmask: i32,
+    pub front_face_bmask: u8,
+    pub valid_bmask: u8,
 }
 
 #[derive(Clone, Copy)]

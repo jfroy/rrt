@@ -200,7 +200,7 @@ pub fn ray_sphere_intersect_x8<'scene>(
             Some(spheres[6].material.borrow()),
             Some(spheres[7].material.borrow()),
         ],
-        front_face_bmask: front_face_mask.move_mask(),
-        valid_bmask: (root1_valid | root2_valid).move_mask(),
+        front_face_bmask: front_face_mask.move_mask() as u8,
+        valid_bmask: (root1_valid | root2_valid).move_mask() as u8,
     }
 }
