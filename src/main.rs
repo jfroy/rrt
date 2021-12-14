@@ -19,7 +19,7 @@ fn main() {
                 .short('r')
                 .takes_value(true)
                 .default_value("1200x800")
-                .about("output resolution in pixels"),
+                .help("output resolution in pixels"),
         )
         .arg(
             Arg::new("samples")
@@ -27,7 +27,7 @@ fn main() {
                 .short('s')
                 .takes_value(true)
                 .default_value("10")
-                .about("samples per pixel"),
+                .help("samples per pixel"),
         )
         .arg(
             Arg::new("seed")
@@ -35,13 +35,13 @@ fn main() {
                 .short('e')
                 .takes_value(true)
                 .default_value("0")
-                .about("rng seed"),
+                .help("rng seed"),
         )
         .arg(
             Arg::new("random")
                 .long("random")
                 .short('m')
-                .about("use a random rng seed"),
+                .help("use a random rng seed"),
         )
         .get_matches();
     let (w, h) = match parse_resolution(arg_matches.value_of("resolution")) {

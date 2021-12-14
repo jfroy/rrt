@@ -2,21 +2,21 @@
 name = "rrt"
 version = "0.1.0"
 authors = ["Jean-Francois Roy <jf@devklog.net>"]
-edition = "2018"
+edition = "2021"
 resolver = "2"
 
 [dependencies]
 arrayvec = "0.7"
-clap = "3.0.0-beta.2"
+clap = "3.0.0-rc.4"
 image = "0.23"
 itertools = "0.10.0"
-palette = "0.5"
+palette = "0.6"
 pbr = "1.0"
 rand = { version = "0.8", features = ["small_rng"] }
 rand_xoshiro = "0.6"
 rayon = "1.5"
 ultraviolet = "0.8"
-wide = "0.6"
+wide = "0.7"
 
 [profile.release]
 debug = true

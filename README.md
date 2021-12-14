@@ -1,3 +1,5 @@
+# rrt
+
 My attempt at [Ray Tracing In One Weekend][rtiow] and
 [Ray Tracing: The Next Week][rttnw] in Rust.
 
