@@ -1,4 +1,4 @@
-use clap::{App, Arg};
+use clap::{Arg, Command};
 use pbr::ProgressBar;
 use rrt::book2chap2::*;
 use rrt::rng::*;
@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::{thread, time};
 
 fn main() {
-    let arg_matches = App::new("rrt")
+    let arg_matches = Command::new("rrt")
         .version("0.1.0")
         .author("Jean-Francois Roy <jf@devklog.net>")
         .about("Ray Tracing In One Weekend")
