@@ -1,5 +1,5 @@
 use clap::{Arg, Command};
-use pbr::ProgressBar;
+use indicatif::ProgressBar;
 use rrt::book2chap2::*;
 use rrt::rng::*;
 use rrt::threadpool::*;
