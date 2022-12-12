@@ -84,7 +84,7 @@ fn main() {
             let mut pb = ProgressBar::new((t) as u64);
             loop {
                 let x = ui_pxcount.load(Ordering::Relaxed);
-                pb.set(x as u64);
+                pb.set_position(x as u64);
                 thread::sleep(time::Duration::from_secs(1));
                 if x >= t {
                     break;
