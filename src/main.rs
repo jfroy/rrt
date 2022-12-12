@@ -17,7 +17,7 @@ fn main() {
             Arg::new("resolution")
                 .long("resolution")
                 .short('r')
-                .takes_value(true)
+                .num_args(1)
                 .default_value("1200x800")
                 .help("output resolution in pixels"),
         )
@@ -25,7 +25,7 @@ fn main() {
             Arg::new("samples")
                 .long("samples")
                 .short('s')
-                .takes_value(true)
+                .num_args(1)
                 .default_value("10")
                 .help("samples per pixel"),
         )
@@ -33,7 +33,7 @@ fn main() {
             Arg::new("seed")
                 .long("seed")
                 .short('e')
-                .takes_value(true)
+                .num_args(1)
                 .default_value("0")
                 .help("rng seed"),
         )
@@ -44,25 +44,25 @@ fn main() {
                 .help("use a random rng seed"),
         )
         .get_matches();
-    let (w, h) = match parse_resolution(arg_matches.value_of("resolution")) {
+    let (w, h) = match parse_resolution(arg_matches.get_one::<String>("resolution")) {
         Some(v) => v,
         None => {
             eprintln!("invalid resolution");
             return;
         }
     };
-    let spp: usize = match parse_arg(arg_matches.value_of("samples")) {
-        Some(v) => v,
+    let spp = match arg_matches.get_one::<usize>("samples") {
+        Some(v) => *v,
         None => {
             eprintln!("invalid sample count");
             return;
         }
     };
-    let mut rng: RttRng = if arg_matches.is_present("random") {
+    let mut rng: RttRng = if arg_matches.contains_id("random") {
         RttRng::from_entropy()
     } else {
-        match parse_arg(arg_matches.value_of("seed")) {
-            Some(v) => RttRng::seed_from_u64(v),
+        match arg_matches.get_one::<u64>("seed") {
+            Some(v) => RttRng::seed_from_u64(*v),
             None => {
                 eprintln!("invalid rng seed");
                 return;
@@ -107,7 +107,7 @@ fn main() {
     .unwrap()
 }
 
-fn parse_resolution(s: Option<&str>) -> Option<(usize, usize)> {
+fn parse_resolution(s: Option<&String>) -> Option<(usize, usize)> {
     let v: Vec<&str> = s?.split('x').collect();
     if v.len() != 2 {
         return None;
@@ -125,11 +125,4 @@ fn parse_resolution(s: Option<&str>) -> Option<(usize, usize)> {
         }
     };
     Some((w, h))
-}
-
-fn parse_arg<T: std::str::FromStr>(s: Option<&str>) -> Option<T> {
-    match s?.parse::<T>() {
-        Ok(n) => Some(n),
-        Err(_) => None,
-    }
 }
