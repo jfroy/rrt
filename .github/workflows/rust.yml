@@ -14,10 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-          components: rustfmt, clippy
-      - name: Build
-        run: cargo build --release --verbose
+      # When rustup is updated, it tries to replace its binary, which on Windows is somehow locked.
+      # This can result in the CI failure, see: https://github.com/rust-lang/rustup/issues/3029
+      - name: rustup
+        run: |
+          rustup set auto-self-update disable
+          rustup toolchain install nightly --profile minimal
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo
+        run: |
+          cargo check
+          cargo build --release
