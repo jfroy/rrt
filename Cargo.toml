@@ -14,7 +14,7 @@ itertools = "0.12.1"
 palette = "0.7"
 rand = { version = "0.8", features = ["small_rng"] }
 rand_xoshiro = "0.6"
-rayon = "1.8"
+rayon = "1.9"
 ultraviolet = "0.9"
 wide = "0.7"
 
