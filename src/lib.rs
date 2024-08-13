@@ -1,6 +1,5 @@
 #![allow(clippy::just_underscores_and_digits)]
 #![feature(const_fn_floating_point_arithmetic)]
-#![feature(platform_intrinsics)]
 
 pub mod book2chap2;
 pub mod chap11;
