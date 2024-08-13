@@ -81,7 +81,7 @@ fn main() {
         .name("ui".to_string())
         .spawn(move || {
             let t = w * h;
-            let mut pb = ProgressBar::new((t) as u64);
+            let pb = ProgressBar::new((t) as u64);
             loop {
                 let x = ui_pxcount.load(Ordering::Relaxed);
                 pb.set_position(x as u64);
